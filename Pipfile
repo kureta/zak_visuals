@@ -9,6 +9,11 @@ verify_ssl = true
 opencv-python = "*"
 essentia = "*"
 jack-client = "*"
+torch-nightly = {file = "https://download.pytorch.org/whl/nightly/cu100/torch_nightly-1.1.0.dev20190415-cp37-cp37m-linux_x86_64.whl"}
+torchvision-nightly = "*"
 
 [requires]
 python_version = "3.7"
+
+[pipenv]
+allow_prereleases = true
