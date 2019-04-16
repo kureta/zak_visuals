@@ -1,3 +1,4 @@
+import pickle
 from dataclasses import dataclass
 
 import essentia
@@ -71,5 +72,21 @@ def pool_to_features(pool, config):
     return Features(**result)
 
 
+def load_saved():
+    with open('data/pickles/audio_features.pickle', 'rb') as f:
+        # The protocol version used is detected automatically, so we do not
+        # have to specify it.
+        audio_features = pickle.load(f)
+
+    return audio_features
+
+
+def main():
+    audio_features = calculate_audio_features(Config())
+    with open('data/pickles/audio_features.pickle', 'wb') as f:
+        # Pickle the 'data' dictionary using the highest protocol available.
+        pickle.dump(audio_features, f, pickle.HIGHEST_PROTOCOL)
+
+
 if __name__ == '__main__':
-    print(calculate_audio_features(Config()))
+    main()
