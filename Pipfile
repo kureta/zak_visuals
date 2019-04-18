@@ -12,6 +12,7 @@ essentia = "*"
 jack-client = "*"
 torch-nightly = "*"
 torchvision-nightly = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.7"
