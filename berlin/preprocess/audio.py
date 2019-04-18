@@ -68,7 +68,7 @@ def pool_to_features(pool, config):
         array = essentia.array(values)
         array = array[config.frames_start_index:config.frames_end_index]
         array = (array - np.mean(array)) / np.std(array)
-        result[key] = array.astype('float16')
+        result[key] = array
 
     return Features(**result)
 
@@ -104,4 +104,5 @@ def make_tensor(save=False):
 
 
 if __name__ == '__main__':
+    save_features()
     make_tensor(save=True)

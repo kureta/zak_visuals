@@ -7,7 +7,7 @@ from berlin.preprocess.utils import recursive_file_paths, do_multiprocess
 
 
 def load_image(image_file):
-    image = cv2.imread(image_file).astype('float16')
+    image = cv2.imread(image_file).astype('float32')
     return image / 255.
 
 
@@ -19,6 +19,7 @@ def calculate_image_features(config):
 
 def images_to_tensor(save=False):
     image_features = torch.from_numpy(calculate_image_features(Config()))
+    image_features = image_features.permute(0, 3, 1, 2)
     if save:
         torch.save(image_features, 'data/pickles/images.torch')
 

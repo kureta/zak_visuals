@@ -9,9 +9,9 @@ class Config:
     frames_start_index = 378
     frames_end_index = 24228
     audio_dir = 'data/audio'
-    audio_extensions = ['.aac']
+    audio_extensions = ['.wav']
     image_dir = 'data/images/resized'
-    image_extensions = ['.bmp']
+    image_extensions = ['.png']
 
     @property
     def hop_size(self):
