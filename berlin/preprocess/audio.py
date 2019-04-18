@@ -66,7 +66,6 @@ def pool_to_features(pool, config):
     for key in pool.descriptorNames():
         values = pool[key]
         array = essentia.array(values)
-        array = array[config.frames_start_index:config.frames_end_index]
         array = (array - np.mean(array)) / np.std(array)
         result[key] = array
 
