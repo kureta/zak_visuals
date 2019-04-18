@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import torch
 
 from berlin.config import Config
 from berlin.preprocess.utils import recursive_file_paths, do_multiprocess
@@ -16,14 +17,13 @@ def calculate_image_features(config):
     return np.stack(images)
 
 
-def load_saved():
-    return np.load('data/pickles/image_features.npy')
+def images_to_tensor(save=False):
+    image_features = torch.from_numpy(calculate_image_features(Config()))
+    if save:
+        torch.save(image_features, 'data/pickles/images.torch')
 
-
-def main():
-    image_features = calculate_image_features(Config())
-    np.save('data/pickles/image_features.npy', image_features)
+    return image_features
 
 
 if __name__ == '__main__':
-    main()
+    images_to_tensor(save=True)

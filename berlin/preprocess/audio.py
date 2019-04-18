@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import essentia
 import essentia.standard as es
 import numpy as np
+import torch
 
 from berlin.config import Config
 from berlin.preprocess.utils import recursive_file_paths
@@ -72,7 +73,14 @@ def pool_to_features(pool, config):
     return Features(**result)
 
 
-def load_saved():
+def save_features():
+    audio_features = calculate_audio_features(Config())
+    with open('data/pickles/audio_features.pickle', 'wb') as f:
+        # Pickle the 'data' dictionary using the highest protocol available.
+        pickle.dump(audio_features, f, pickle.HIGHEST_PROTOCOL)
+
+
+def load_saved_features():
     with open('data/pickles/audio_features.pickle', 'rb') as f:
         # The protocol version used is detected automatically, so we do not
         # have to specify it.
@@ -81,12 +89,19 @@ def load_saved():
     return audio_features
 
 
-def main():
-    audio_features = calculate_audio_features(Config())
-    with open('data/pickles/audio_features.pickle', 'wb') as f:
-        # Pickle the 'data' dictionary using the highest protocol available.
-        pickle.dump(audio_features, f, pickle.HIGHEST_PROTOCOL)
+def make_tensor(save=False):
+    features = load_saved_features()
+    for key, value in features.__dict__.items():
+        if len(value.shape) <= 1:
+            features.__dict__[key] = np.expand_dims(value, axis=1)
+
+    concatenated = np.concatenate(list(features.__dict__.values()), axis=1)
+    audio = torch.from_numpy(concatenated)
+    if save:
+        torch.save(audio, 'data/pickles/audio.torch')
+
+    return audio
 
 
 if __name__ == '__main__':
-    main()
+    make_tensor(save=True)
