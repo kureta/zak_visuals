@@ -10,7 +10,8 @@ class Autoencoder(nn.Module):
         self.encoder = Encoder()
         self.decoder = Decoder()
 
-    def forward(self, image, audio):
+    def forward(self, image_audio):
+        image, audio = image_audio
         z = self.encoder(image, audio)
         y = self.decoder(z, audio)
 

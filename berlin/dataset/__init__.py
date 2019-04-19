@@ -36,4 +36,4 @@ class AutoencoderDataset(Dataset):
         return len_img
 
     def __getitem__(self, index):
-        return self.image_data.data[index], self.audio_data.data[index]
+        return (self.image_data.data[index], self.audio_data.data[index]), self.image_data.data[index]

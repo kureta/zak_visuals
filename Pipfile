@@ -7,12 +7,14 @@ verify_ssl = true
 
 [packages]
 numpy = "*"
-opencv-python = "*"
+matplotlib = "*"
 essentia = "*"
 jack-client = "*"
-torch-nightly = "*"
+opencv-python = "*"
 torchvision-nightly = "*"
-matplotlib = "*"
+torch-nightly = "*"
+pytorch-ignite = {editable = true,path = "/home/kureta/Documents/other_repos/ignite"}
+ipykernel = "*"
 
 [requires]
 python_version = "3.7"
