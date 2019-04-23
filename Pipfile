@@ -15,6 +15,7 @@ torchvision-nightly = "*"
 torch-nightly = "*"
 pytorch-ignite = {editable = true,path = "/home/kureta/Documents/other_repos/ignite"}
 ipykernel = "*"
+ipywidgets = "*"
 
 [requires]
 python_version = "3.7"
