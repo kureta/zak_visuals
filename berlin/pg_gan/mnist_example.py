@@ -27,7 +27,7 @@ parser.add_argument('--outl', default='Losses', help='folder to save Losses')
 parser.add_argument('--outm', default='Models', help='folder to save models')
 
 parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
-parser.add_argument('--batchSizes', type=list, default=[256, 128, 64, 32, 16, 8, 8, 4, 4],
+parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4, 4],
                     help='list of batch sizes during the training')
 parser.add_argument('--nch', type=int, default=12, help='base number of channel for networks')
 parser.add_argument('--BN', action='store_true', help='use BatchNorm in G and D')
@@ -54,9 +54,8 @@ MAX_RES = opt.max_res  # maximum resolution = 4 * 2^MAX_RES
 from berlin.dataset.video import Video
 from torch.utils.data import ConcatDataset
 
-# videos = [Video(3, (1024, 1024)) for idx in range(9)]
-# dataset = ConcatDataset(videos)
-dataset = Video(3, (1024, 1024))
+videos = [Video(3, (1024, 1024)) for idx in range(9)]
+dataset = ConcatDataset(videos)
 
 # creating output folders
 if not os.path.exists(opt.outd):
@@ -97,7 +96,7 @@ data_loader = DataLoader(dataset,
                          shuffle=True,
                          num_workers=opt.workers,
                          drop_last=True,
-                         pin_memory=False)
+                         pin_memory=True)
 
 while True:
     t0 = time()
@@ -120,7 +119,7 @@ while True:
                                  shuffle=True,
                                  num_workers=opt.workers,
                                  drop_last=True,
-                                 pin_memory=False)
+                                 pin_memory=True)
 
     total = len(data_loader)
 
