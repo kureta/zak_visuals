@@ -11,7 +11,8 @@ from torch.utils.data import ConcatDataset
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 
-from berlin.dataset.video import Video
+from berlin.dataset.conditional import ConditionalDataset
+from berlin.dataset.audio import Audio
 from berlin.pg_gan.model import *
 from berlin.pg_gan.progressBar import printProgressBar
 from berlin.pg_gan.utils import *
@@ -33,7 +34,7 @@ parser.add_argument('--BN', action='store_true', help='use BatchNorm in G and D'
 parser.add_argument('--WS', action='store_true', help='use WeightScale in G and D')
 parser.add_argument('--PN', action='store_true', help='use PixelNorm in G')
 
-parser.add_argument('--n_iter', type=int, default=1, help='number of epochs to train before changing the progress')
+parser.add_argument('--n_iter', type=int, default=2, help='number of epochs to train before changing the progress')
 parser.add_argument('--lambdaGP', type=float, default=10, help='lambda for gradient penalty')
 parser.add_argument('--gamma', type=float, default=1, help='gamma for gradient penalty')
 parser.add_argument('--e_drift', type=float, default=0.001, help='epsilon drift for discriminator loss')
@@ -44,7 +45,7 @@ parser.add_argument('--savemaxsize', action='store_true',
                     help='save sample images at max resolution instead of real resolution')
 parser.add_argument('--max_res', type=int, default=8, help='maximum resolution will be 4*2^max_res')
 parser.add_argument('--BW', action='store_true', help='Use black & white images')
-parser.add_argument('--limit', type=int, default=200, help='number of epochs between saving models')
+parser.add_argument('--limit', type=int, default=0, help='number of epochs between saving models')
 
 opt = parser.parse_args()
 print(opt)
@@ -59,8 +60,10 @@ if opt.BW:
 if opt.limit <= 0:
     opt.limit = None
 
-videos = [Video(idx, gray_scale=opt.BW, limit=opt.limit) for idx in range(9)]
+videos = [ConditionalDataset(idx, gray_scale=opt.BW, limit=opt.limit) for idx in range(9)]
+fake_audio = [Audio(idx, limit=opt.limit) for idx in range(9)]
 dataset = ConcatDataset(videos)
+fake_audio_dataset = ConcatDataset(fake_audio)
 
 # creating output folders
 if not os.path.exists(opt.outd):
@@ -71,7 +74,7 @@ for f in [opt.outf, opt.outl, opt.outm]:
 
 # Model creation and init
 G = Generator(max_res=MAX_RES, nch=opt.nch, nc=COLOR_CHANNELS, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
-D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=COLOR_CHANNELS, bn=opt.BN, ws=opt.WS).to(DEVICE)
+D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=COLOR_CHANNELS + 32, bn=opt.BN, ws=opt.WS).to(DEVICE)
 if not opt.WS:
     # weights are initialized by WScale layers to normal if WS is used
     G.apply(weights_init)
@@ -91,7 +94,9 @@ d_losses_W = np.array([])
 g_losses = np.array([])
 P = Progress(opt.n_iter, MAX_RES, opt.batchSizes)
 
-z_save = hypersphere(torch.randn(opt.savenum, opt.nch * 32, 1, 1, device=DEVICE))
+z_save = hypersphere(torch.randn(opt.savenum, (opt.nch - 1) * 32, 1, 1, device=DEVICE))
+mel_save = torch.cat([fake_audio_dataset[idx][0].unsqueeze(0) for idx in range(opt.savenum)], dim=0).to(DEVICE)
+z_save = torch.cat([z_save, mel_save.unsqueeze(-1).unsqueeze(-1)], dim=1)
 
 P.progress(epoch, 1, total)
 GP.batchSize = P.batchSize
@@ -102,6 +107,13 @@ data_loader = DataLoader(dataset,
                          num_workers=opt.workers,
                          drop_last=True,
                          pin_memory=False)
+
+fake_mel_data_loader = DataLoader(fake_audio_dataset,
+                                  batch_size=P.batchSize,
+                                  shuffle=True,
+                                  num_workers=opt.workers,
+                                  drop_last=True,
+                                  pin_memory=False)
 
 while True:
     t0 = time()
@@ -124,10 +136,16 @@ while True:
                                  num_workers=opt.workers,
                                  drop_last=True,
                                  pin_memory=False)
+        fake_mel_data_loader = DataLoader(fake_audio_dataset,
+                                          batch_size=P.batchSize,
+                                          shuffle=True,
+                                          num_workers=opt.workers,
+                                          drop_last=True,
+                                          pin_memory=False)
 
     total = len(data_loader)
 
-    for i, (images, _) in enumerate(data_loader):
+    for i, ((images, mels, _), (fake_mels, _)) in enumerate(zip(data_loader, fake_mel_data_loader)):
         P.progress(epoch, i + 1, total + 1)
         global_step += 1
 
@@ -135,14 +153,25 @@ while True:
         images = images.to(DEVICE, non_blocking=True)
         images = P.resize(images)
 
+        mels = mels.to(DEVICE, non_blocking=True)
+        fake_mels = fake_mels.to(DEVICE, non_blocking=True)
+
+        images = torch.cat([images,
+                            mels.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, images.shape[-2], images.shape[-1])], dim=1)
+
         # ============= Train the discriminator =============#
 
         # zeroing gradients in D
         D.zero_grad()
         # compute fake images with G
-        z = hypersphere(torch.randn(P.batchSize, opt.nch * 32, 1, 1, device=DEVICE))
+        z = hypersphere(torch.randn(P.batchSize, (opt.nch - 1) * 32, 1, 1, device=DEVICE))
+        z = torch.cat([z, fake_mels.unsqueeze(-1).unsqueeze(-1)], dim=1)
         with torch.no_grad():
             fake_images = G(z, P.p)
+
+        fake_images = torch.cat([fake_images,
+                                 fake_mels.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, fake_images.shape[-2],
+                                                                              fake_images.shape[-1])], dim=1)
 
         # compute scores for real images
         D_real = D(images, P.p)
@@ -171,8 +200,12 @@ while True:
 
         G.zero_grad()
 
-        z = hypersphere(torch.randn(P.batchSize, opt.nch * 32, 1, 1, device=DEVICE))
+        z = hypersphere(torch.randn(P.batchSize, (opt.nch - 1) * 32, 1, 1, device=DEVICE))
+        z = torch.cat([z, fake_mels.unsqueeze(-1).unsqueeze(-1)], dim=1)
         fake_images = G(z, P.p)
+        fake_images = torch.cat([fake_images,
+                                 fake_mels.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, fake_images.shape[-2],
+                                                                              fake_images.shape[-1])], dim=1)
         # compute scores with new fake images
         G_fake = D(fake_images, P.p)
         G_fakem = G_fake.mean()
