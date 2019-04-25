@@ -6,9 +6,7 @@ from numpy.lib.stride_tricks import as_strided
 from torch.utils.data import Dataset
 
 VIDEO_DIR = '/home/kureta/Videos/Rendered/'
-VIDEO_FILE_NAME = '{}.mov'
 AUDIO_FILE_NAME = '{}.wav'
-NUM_VIDEOS = 9
 
 
 class Audio(Dataset):
