@@ -2,7 +2,6 @@
 data/
 __pycache__/
 .ipynb_checkpoints/
-DATA/
 Results/
-Footage/
+saves/
 
