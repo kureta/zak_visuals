@@ -8,12 +8,17 @@ import jack
 import numpy as np
 
 
+from berlin.pg_gan.model import Generator
+import torch
+
+G: Generator = torch.load('/home/kureta/Documents/repos/berlin/Footage/Models/Gs_nch-4_epoch-198.pth').cuda()
+
 ########
 x = es.MonoLoader(filename='/home/kureta/Music/misc/untitled.wav')()
 window = es.Windowing(type='hann')
-spectrum = es.Spectrum(size=1024)
+spectrum = es.Spectrum(size=2048)
 specs = []
-for frame in es.FrameGenerator(x, frameSize=1024, hopSize=512):
+for frame in es.FrameGenerator(x, frameSize=2048, hopSize=1920):
     specs.append(spectrum(window(frame)))
 specs = essentia.array(specs)
 mean, std = np.mean(specs), np.std(specs)
@@ -58,7 +63,7 @@ launch_daemon(specs_manager)
 def process(frames):
     assert frames == client.blocksize
     for i in client.inports:
-        buffer = i.get_array()
+        buffer = i.get_array().astype('float32')
         specc = (spectrum(window(buffer)) - mean) / std
         specs_queue.put(specc)
     event.set()
@@ -88,8 +93,18 @@ with client:
     try:
         while True:
             event.wait()
+            # image = G(sp)
+            features = (specs.mean(axis=0)[:128] - mean) / std
+            features = torch.from_numpy(features.astype('float32'))
+            features.unsqueeze_(0).unsqueeze_(2).unsqueeze_(3)
+            features = features.cuda()
+            with torch.no_grad():
+                image = G(features)
+            image.squeeze_(0).squeeze_(0)
+            image = (image + 1) / 2
+            image = image.cpu().numpy()
 
-            cv2.imshow('frame', specs)
+            cv2.imshow('frame', image)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
