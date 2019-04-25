@@ -1,9 +1,8 @@
 import os
-from itertools import islice
 
+import cv2
+import numpy as np
 import torch
-from skvideo.io import FFmpegReader
-from torch.nn.functional import interpolate
 from torch.utils.data import Dataset
 
 VIDEO_DIR = '/home/kureta/Videos/Rendered/'
@@ -13,26 +12,39 @@ NUM_VIDEOS = 9
 
 
 class Video(Dataset):
-    def __init__(self, video_idx, size=(1920, 1080)):
+    def __init__(self, video_idx, size=(1920, 1080), num_frames=200):
         super(Video, self).__init__()
 
         video_path = os.path.join(VIDEO_DIR, VIDEO_FILE_NAME.format(video_idx + 1))
 
+        self.cap = cv2.VideoCapture(video_path)
+        length = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.label = video_idx
-        self.cap = FFmpegReader(video_path)
-        self.length, _, _, _ = self.cap.getShape()
-        self.size = size
+
+        indices = np.random.permutation(length)[:num_frames]
+
+        frames = np.empty((num_frames, *size), dtype='float32')
+
+        for i, idx in enumerate(indices):
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            result, frame = self.cap.read()
+            if not result:
+                raise IndexError
+            grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            del frame
+            frames[i] = cv2.resize(grayscale, size, interpolation=cv2.INTER_LINEAR).astype('float32')
+            del grayscale
+
+        frames_tensor = torch.from_numpy(frames)
+        del frames
+
+        frames_tensor = frames_tensor / 255 * 2 - 1
+        frames_tensor.unsqueeze_(1)
+        self.frames = frames_tensor
+        self.length = num_frames
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, idx):
-        video_gen = self.cap.nextFrame()
-
-        frame = next(islice(video_gen, idx))
-
-        frame = torch.from_numpy(((frame / 255) * 2 - 1).astype('float32'))
-        frame = frame.permute((2, 0, 1))
-        frame = interpolate(frame.unsqueeze(0), self.size, mode='bilinear').squeeze(0)
-
-        return frame, self.label
+        return self.frames[idx], self.label

@@ -1,40 +1,40 @@
 import argparse
 import copy
 import os
+from time import time
 
 import matplotlib
-
-matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
-
 from torch.optim import Adam
+from torch.utils.data import ConcatDataset
 from torch.utils.data import DataLoader
-from torch.backends import cudnn
 from torchvision.utils import save_image
 
+from berlin.dataset.video import Video
 from berlin.pg_gan.model import *
 from berlin.pg_gan.progressBar import printProgressBar
 from berlin.pg_gan.utils import *
 
-from time import time
+matplotlib.use('agg')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data', type=str, default='DATA', help='directory containing the data')
+
 parser.add_argument('--outd', default='Footage', help='directory to save results')
 parser.add_argument('--outf', default='Images', help='folder to save synthetic images')
 parser.add_argument('--outl', default='Losses', help='folder to save Losses')
 parser.add_argument('--outm', default='Models', help='folder to save models')
 
-parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
+parser.add_argument('--workers', type=int, default=0, help='number of data loading workers')
 parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4, 4],
                     help='list of batch sizes during the training')
-parser.add_argument('--nch', type=int, default=12, help='base number of channel for networks')
+parser.add_argument('--nch', type=int, default=4, help='base number of channel for networks')
 parser.add_argument('--BN', action='store_true', help='use BatchNorm in G and D')
 parser.add_argument('--WS', action='store_true', help='use WeightScale in G and D')
 parser.add_argument('--PN', action='store_true', help='use PixelNorm in G')
 
-parser.add_argument('--n_iter', type=int, default=1, help='number of epochs to train before changing the progress')
+# TODO: Try n_iter = 20
+parser.add_argument('--n_iter', type=int, default=10, help='number of epochs to train before changing the progress')
 parser.add_argument('--lambdaGP', type=float, default=10, help='lambda for gradient penalty')
 parser.add_argument('--gamma', type=float, default=1, help='gamma for gradient penalty')
 parser.add_argument('--e_drift', type=float, default=0.001, help='epsilon drift for discriminator loss')
@@ -51,10 +51,8 @@ print(opt)
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_RES = opt.max_res  # maximum resolution = 4 * 2^MAX_RES
 
-from berlin.dataset.video import Video
-from torch.utils.data import ConcatDataset
-
-videos = [Video(3, (1024, 1024)) for idx in range(9)]
+# TODO: Try num_frames = 350
+videos = [Video(idx, (1024, 1024), num_frames=200) for idx in range(9)]
 dataset = ConcatDataset(videos)
 
 # creating output folders
@@ -65,8 +63,8 @@ for f in [opt.outf, opt.outl, opt.outm]:
         os.makedirs(os.path.join(opt.outd, f))
 
 # Model creation and init
-G = Generator(max_res=MAX_RES, nch=opt.nch, nc=3, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
-D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=3, bn=opt.BN, ws=opt.WS).to(DEVICE)
+G = Generator(max_res=MAX_RES, nch=opt.nch, nc=1, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
+D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=1, bn=opt.BN, ws=opt.WS).to(DEVICE)
 if not opt.WS:
     # weights are initialized by WScale layers to normal if WS is used
     G.apply(weights_init)
@@ -96,7 +94,7 @@ data_loader = DataLoader(dataset,
                          shuffle=True,
                          num_workers=opt.workers,
                          drop_last=True,
-                         pin_memory=True)
+                         pin_memory=False)
 
 while True:
     t0 = time()
@@ -106,7 +104,6 @@ while True:
     lossEpochD_W = []
 
     G.train()
-    cudnn.benchmark = True
 
     P.progress(epoch, 1, total)
 
@@ -119,7 +116,7 @@ while True:
                                  shuffle=True,
                                  num_workers=opt.workers,
                                  drop_last=True,
-                                 pin_memory=True)
+                                 pin_memory=False)
 
     total = len(data_loader)
 
@@ -206,7 +203,6 @@ while True:
     np.save(os.path.join(opt.outd, opt.outl, 'd_losses_W.npy'), d_losses_W)
     np.save(os.path.join(opt.outd, opt.outl, 'g_losses.npy'), g_losses)
 
-    cudnn.benchmark = False
     if not (epoch + 1) % opt.saveimages:
         # plotting loss values, g_losses is not plotted as it does not represent anything in the WGAN-GP
         ax = plt.subplot()
