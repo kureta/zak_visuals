@@ -25,16 +25,15 @@ parser.add_argument('--outf', default='Images', help='folder to save synthetic i
 parser.add_argument('--outl', default='Losses', help='folder to save Losses')
 parser.add_argument('--outm', default='Models', help='folder to save models')
 
-parser.add_argument('--workers', type=int, default=0, help='number of data loading workers')
-parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4, 4],
+parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
+parser.add_argument('--batchSizes', type=list, default=[64, 64, 32, 32, 32, 16, 16, 8, 4],
                     help='list of batch sizes during the training')
-parser.add_argument('--nch', type=int, default=4, help='base number of channel for networks')
+parser.add_argument('--nch', type=int, default=8, help='base number of channel for networks')
 parser.add_argument('--BN', action='store_true', help='use BatchNorm in G and D')
 parser.add_argument('--WS', action='store_true', help='use WeightScale in G and D')
 parser.add_argument('--PN', action='store_true', help='use PixelNorm in G')
 
-# TODO: Try n_iter = 20
-parser.add_argument('--n_iter', type=int, default=10, help='number of epochs to train before changing the progress')
+parser.add_argument('--n_iter', type=int, default=1, help='number of epochs to train before changing the progress')
 parser.add_argument('--lambdaGP', type=float, default=10, help='lambda for gradient penalty')
 parser.add_argument('--gamma', type=float, default=1, help='gamma for gradient penalty')
 parser.add_argument('--e_drift', type=float, default=0.001, help='epsilon drift for discriminator loss')
@@ -44,15 +43,23 @@ parser.add_argument('--savemodel', type=int, default=1, help='number of epochs b
 parser.add_argument('--savemaxsize', action='store_true',
                     help='save sample images at max resolution instead of real resolution')
 parser.add_argument('--max_res', type=int, default=8, help='maximum resolution will be 4*2^max_res')
+parser.add_argument('--BW', action='store_true', help='Use black & white images')
+parser.add_argument('--limit', type=int, default=200, help='number of epochs between saving models')
 
 opt = parser.parse_args()
 print(opt)
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_RES = opt.max_res  # maximum resolution = 4 * 2^MAX_RES
+COLOR_CHANNELS = 3
 
-# TODO: Try num_frames = 350
-videos = [Video(idx, (1024, 1024), num_frames=200) for idx in range(9)]
+if opt.BW:
+    COLOR_CHANNELS = 1
+
+if opt.limit <= 0:
+    opt.limit = None
+
+videos = [Video(idx, gray_scale=opt.BW, limit=opt.limit) for idx in range(9)]
 dataset = ConcatDataset(videos)
 
 # creating output folders
@@ -63,8 +70,8 @@ for f in [opt.outf, opt.outl, opt.outm]:
         os.makedirs(os.path.join(opt.outd, f))
 
 # Model creation and init
-G = Generator(max_res=MAX_RES, nch=opt.nch, nc=1, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
-D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=1, bn=opt.BN, ws=opt.WS).to(DEVICE)
+G = Generator(max_res=MAX_RES, nch=opt.nch, nc=COLOR_CHANNELS, bn=opt.BN, ws=opt.WS, pn=opt.PN).to(DEVICE)
+D = Discriminator(max_res=MAX_RES, nch=opt.nch, nc=COLOR_CHANNELS, bn=opt.BN, ws=opt.WS).to(DEVICE)
 if not opt.WS:
     # weights are initialized by WScale layers to normal if WS is used
     G.apply(weights_init)
@@ -125,7 +132,7 @@ while True:
         global_step += 1
 
         # Build mini-batch
-        images = images.to(DEVICE)
+        images = images.to(DEVICE, non_blocking=True)
         images = P.resize(images)
 
         # ============= Train the discriminator =============#
