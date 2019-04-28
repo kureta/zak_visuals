@@ -35,7 +35,7 @@ if client.status.name_not_unique:
 event = threading.Event()
 
 size = 10
-specs = np.zeros((size, 513))
+specs = np.zeros((size, 1025))
 specs_queue = queue.Queue()
 
 
