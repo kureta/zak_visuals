@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "681cbb6f956884b1999d6ac10d85a46171af5c17bffbee23109dce1451a147a7"
+            "sha256": "24f3fe5ba17767d9d04e2c3dd43d978af4e93dc8d2ddeaac56d646bbe434e7c5"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -624,12 +624,12 @@
             "version": "==0.4.2"
         },
         "torch": {
-            "file": "/home/kureta/Documents/other_repos/pytorch/dist/torch-1.1.0a0+47c0a49-cp37-cp37m-linux_x86_64.whl",
+            "file": "/home/kureta/Documents/other_repos/pytorch/dist/torch-1.1.0a0+3803d1c-cp37-cp37m-linux_x86_64.whl",
             "hashes": [
-                "sha256:8260ff38e48ab32420e6c1908d0c1c2f20300fee1c2b7e1a97abb80b778c6d1e"
+                "sha256:1fc764265aeec0002489e2b6d9015f03b948675567e7634f117e50bb1ba31683"
             ],
             "index": "pypi",
-            "version": "==1.1.0a0+47c0a49"
+            "version": "==1.1.0a0+3803d1c"
         },
         "torchvision": {
             "editable": true,
