@@ -27,7 +27,7 @@ parser.add_argument('--outl', default='Losses', help='folder to save Losses')
 parser.add_argument('--outm', default='Models', help='folder to save models')
 
 parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
-parser.add_argument('--batchSizes', type=list, default=[64, 64, 32, 32, 32, 16, 16, 8, 4],
+parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4, 4],
                     help='list of batch sizes during the training')
 parser.add_argument('--nch', type=int, default=8, help='base number of channel for networks')
 parser.add_argument('--BN', action='store_true', help='use BatchNorm in G and D')
