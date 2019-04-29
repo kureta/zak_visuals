@@ -12,7 +12,7 @@ essentia = "*"
 jack-client = "*"
 opencv-python = "*"
 torchvision = {editable = true,path = "/home/kureta/Documents/other_repos/vision"}
-torch = {file = "/home/kureta/Documents/other_repos/pytorch/dist/torch-1.1.0a0+3803d1c-cp37-cp37m-linux_x86_64.whl"}
+torch = {file = "/home/kureta/Documents/other_repos/pytorch/dist/torch-1.1.0a0+47c0a49-cp37-cp37m-linux_x86_64.whl"}
 pytorch-ignite = {editable = true,path = "/home/kureta/Documents/other_repos/ignite"}
 ipykernel = "*"
 ipywidgets = "*"
