@@ -631,16 +631,6 @@
             "index": "pypi",
             "version": "==1.1.0a0+47c0a49"
         },
-        "torch-nightly": {
-            "hashes": [
-                "sha256:171bb752d771fb1f5b333d89110bec054ad97ff6cafe53deea5aa7d22bd7baf2",
-                "sha256:25075f248dcf7afdb5b439ebc4c78e7ad1a37a39a05b48aaf0c98fd149d96d26",
-                "sha256:7d043bc1d744294616f83a3915074be0b31411d21fc3c3ecddf7ba153ec40b21",
-                "sha256:ebda92dee88a656a2343eda3aba50044af15cbf7097847c6cd0caf149c5d14f0",
-                "sha256:f166cb2e2b1d266f8fd80b8a7db93549b1ad8664d649a28ee721b7d6e8012c6f"
-            ],
-            "version": "==1.1.0.dev20190428"
-        },
         "torchvision": {
             "editable": true,
             "path": "/home/kureta/Documents/other_repos/vision"
