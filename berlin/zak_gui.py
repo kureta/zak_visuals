@@ -62,15 +62,15 @@ for number in 1, 2:
 def process(frames):
     assert frames == client.blocksize
     lolo = []
-    amps = []
+    amplis = []
     for i in client.inports:
         buffer = i.get_array().astype('float32')
         sp = spectrum(window(buffer))
         lolo.append((mel_bands(sp) - mean) / std)
 
-        amps.append(np.sqrt((buffer * buffer).mean()))
+        amplis.append(np.sqrt((buffer * buffer).mean()))
 
-    amp = sum(amps)
+    amp = sum(amplis)
     specs_queue.put((np.concatenate(lolo), amp))
     event.set()
 
