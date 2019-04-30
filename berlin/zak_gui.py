@@ -97,6 +97,7 @@ class RenderZak(QThread):
 
         self.gain = 0.
         self.curve = 0.
+        self.rgb = 0.
 
     def run(self):
         with client:
@@ -104,6 +105,7 @@ class RenderZak(QThread):
             cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
             print('Press Ctrl+C to stop')
+            base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
             try:
                 while True:
                     event.wait()
@@ -123,7 +125,15 @@ class RenderZak(QThread):
                     image = image.cpu().numpy()
 
                     frame = cv2.resize(image, (1920, 1080)) * amplis
-                    cv2.imshow('frame', frame)
+
+                    rgb_frame = np.empty((1080, 1920, 3), dtype='float32')
+
+                    for idx in range(3):
+                        shift = np.random.normal(0, self.rgb, (3, 2)).astype('float32')
+                        m = cv2.getAffineTransform(base_points, base_points + shift)
+                        rgb_frame[:, :, idx] = cv2.warpAffine(frame, m, (1920, 1080))
+
+                    cv2.imshow('frame', rgb_frame)
 
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         cv2.destroyAllWindows()
@@ -150,14 +160,17 @@ def main():
         global smooth
         p.gain = (ui.gain_slider.value() / 1000) * 5.
         p.curve = (ui.curve_slider.value() / 1000)
+        p.rgb = (ui.rgb_slider.value() / 1000) * 50.
         smooth = ui.smooth_slider.value()
 
-        ui.curve_label.setText(f'{p.curve}')
-        ui.gain_label.setText(f'{p.gain}')
+        ui.curve_label.setText(f'{p.curve:.4f}')
+        ui.gain_label.setText(f'{p.gain:.4f}')
+        ui.rgb_label.setText(f'{p.rgb:.4f}')
         ui.smooth_label.setText(f'{smooth}')
 
     ui.gain_slider.valueChanged.connect(set_values)
     ui.curve_slider.valueChanged.connect(set_values)
+    ui.rgb_slider.valueChanged.connect(set_values)
     ui.smooth_slider.valueChanged.connect(set_values)
 
     main_window.show()
