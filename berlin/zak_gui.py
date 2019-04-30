@@ -18,9 +18,9 @@ std = np.load('mel_std.npy')
 
 event = threading.Event()
 
-size = 30
-specs = np.zeros((size, 128))
-amps = np.zeros(size)
+smooth = 30
+specs = np.zeros((smooth, 128))
+amps = np.zeros(smooth)
 specs_queue = queue.Queue()
 
 
@@ -29,8 +29,8 @@ def specs_manager():
     idx = 0
     while True:
         s, a = specs_queue.get()
-        specs[idx % size] = s
-        amps[idx % size] = a
+        specs[idx % smooth] = s
+        amps[idx % smooth] = a
         idx += 1
         specs_queue.task_done()
 
@@ -97,7 +97,6 @@ class RenderZak(QThread):
 
         self.gain = 0.
         self.curve = 0.
-        self.radius = 0.
 
     def run(self):
         with client:
@@ -108,11 +107,11 @@ class RenderZak(QThread):
             try:
                 while True:
                     event.wait()
-                    features = specs[:size].mean(axis=0)
-                    amplis = amps[:size].mean()
+                    features = specs[:smooth].mean(axis=0)
+                    amplis = amps[:smooth].mean()
                     amplis = (amplis ** self.curve * self.gain)
 
-                    features = hypersphere(features, self.radius)
+                    features = hypersphere(features)
 
                     features = torch.from_numpy(features.astype('float32'))
                     features.unsqueeze_(0).unsqueeze_(2).unsqueeze_(3)
@@ -148,19 +147,16 @@ def main():
     ui.run_button.clicked.connect(p.run)
 
     def set_values():
-        global size
+        global smooth
         p.gain = (ui.gain_slider.value() / 1000) * 5.
-        p.radius = (ui.radius_slider.value() / 1000) * 3.
         p.curve = (ui.curve_slider.value() / 1000)
-        size = ui.smooth_slider.value()
+        smooth = ui.smooth_slider.value()
 
-        ui.radius_label.setText(f'{p.radius}')
         ui.curve_label.setText(f'{p.curve}')
         ui.gain_label.setText(f'{p.gain}')
-        ui.smooth_label.setText(f'{size}')
+        ui.smooth_label.setText(f'{smooth}')
 
     ui.gain_slider.valueChanged.connect(set_values)
-    ui.radius_slider.valueChanged.connect(set_values)
     ui.curve_slider.valueChanged.connect(set_values)
     ui.smooth_slider.valueChanged.connect(set_values)
 
