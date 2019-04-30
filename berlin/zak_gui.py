@@ -148,17 +148,16 @@ def main():
     ui.run_button.clicked.connect(p.run)
 
     def set_values():
+        global size
         p.gain = (ui.gain_slider.value() / 1000) * 5.
         p.radius = (ui.radius_slider.value() / 1000) * 3.
         p.curve = (ui.curve_slider.value() / 1000)
-        p.smooth = ui.smooth_slider.value()
+        size = ui.smooth_slider.value()
 
         ui.radius_label.setText(f'{p.radius}')
         ui.curve_label.setText(f'{p.curve}')
         ui.gain_label.setText(f'{p.gain}')
-        ui.smooth_label.setText(f'{p.smooth}')
-        global size
-        size = p.smooth
+        ui.smooth_label.setText(f'{size}')
 
     ui.gain_slider.valueChanged.connect(set_values)
     ui.radius_slider.valueChanged.connect(set_values)
