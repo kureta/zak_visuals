@@ -68,7 +68,7 @@
    <widget class="QPushButton" name="run_button">
     <property name="geometry">
      <rect>
-      <x>340</x>
+      <x>410</x>
       <y>170</y>
       <width>83</width>
       <height>25</height>
@@ -154,6 +154,51 @@
     </property>
     <property name="text">
      <string>radius</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_4">
+    <property name="geometry">
+     <rect>
+      <x>320</x>
+      <y>50</y>
+      <width>51</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>smooth</string>
+    </property>
+   </widget>
+   <widget class="QSlider" name="smooth_slider">
+    <property name="geometry">
+     <rect>
+      <x>330</x>
+      <y>80</y>
+      <width>16</width>
+      <height>160</height>
+     </rect>
+    </property>
+    <property name="minimum">
+     <number>5</number>
+    </property>
+    <property name="maximum">
+     <number>30</number>
+    </property>
+    <property name="orientation">
+     <enum>Qt::Vertical</enum>
+    </property>
+   </widget>
+   <widget class="QLabel" name="smooth_label">
+    <property name="geometry">
+     <rect>
+      <x>300</x>
+      <y>250</y>
+      <width>64</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>TextLabel</string>
     </property>
    </widget>
   </widget>
