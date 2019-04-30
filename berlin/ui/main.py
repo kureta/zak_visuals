@@ -74,6 +74,23 @@ class Ui_MainWindow(object):
         self.label_5.setGeometry(QtCore.QRect(240, 20, 51, 17))
         self.label_5.setAlignment(QtCore.Qt.AlignCenter)
         self.label_5.setObjectName("label_5")
+        self.video_mix_button = QtWidgets.QPushButton(self.centralwidget)
+        self.video_mix_button.setGeometry(QtCore.QRect(300, 240, 71, 51))
+        self.video_mix_button.setObjectName("video_mix_button")
+        self.label_6 = QtWidgets.QLabel(self.centralwidget)
+        self.label_6.setGeometry(QtCore.QRect(300, 20, 71, 17))
+        self.label_6.setAlignment(QtCore.Qt.AlignCenter)
+        self.label_6.setObjectName("label_6")
+        self.video_mix_label = QtWidgets.QLabel(self.centralwidget)
+        self.video_mix_label.setGeometry(QtCore.QRect(310, 220, 64, 17))
+        self.video_mix_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.video_mix_label.setObjectName("video_mix_label")
+        self.video_mix_slider = QtWidgets.QSlider(self.centralwidget)
+        self.video_mix_slider.setGeometry(QtCore.QRect(330, 50, 16, 160))
+        self.video_mix_slider.setMinimum(0)
+        self.video_mix_slider.setMaximum(1000)
+        self.video_mix_slider.setOrientation(QtCore.Qt.Vertical)
+        self.video_mix_slider.setObjectName("video_mix_slider")
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
@@ -91,6 +108,9 @@ class Ui_MainWindow(object):
         self.smooth_label.setText(_translate("MainWindow", "5"))
         self.rgb_label.setText(_translate("MainWindow", "0"))
         self.label_5.setText(_translate("MainWindow", "rgb"))
+        self.video_mix_button.setText(_translate("MainWindow", "Toggle"))
+        self.label_6.setText(_translate("MainWindow", "video mix"))
+        self.video_mix_label.setText(_translate("MainWindow", "0"))
 
 
 
