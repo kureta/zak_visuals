@@ -32,7 +32,7 @@ class Ui_MainWindow(object):
         self.radius_slider.setOrientation(QtCore.Qt.Vertical)
         self.radius_slider.setObjectName("radius_slider")
         self.run_button = QtWidgets.QPushButton(self.centralwidget)
-        self.run_button.setGeometry(QtCore.QRect(340, 170, 83, 25))
+        self.run_button.setGeometry(QtCore.QRect(410, 170, 83, 25))
         self.run_button.setObjectName("run_button")
         self.gain_label = QtWidgets.QLabel(self.centralwidget)
         self.gain_label.setGeometry(QtCore.QRect(70, 250, 64, 17))
@@ -52,6 +52,18 @@ class Ui_MainWindow(object):
         self.label_3 = QtWidgets.QLabel(self.centralwidget)
         self.label_3.setGeometry(QtCore.QRect(240, 50, 41, 17))
         self.label_3.setObjectName("label_3")
+        self.label_4 = QtWidgets.QLabel(self.centralwidget)
+        self.label_4.setGeometry(QtCore.QRect(320, 50, 51, 17))
+        self.label_4.setObjectName("label_4")
+        self.smooth_slider = QtWidgets.QSlider(self.centralwidget)
+        self.smooth_slider.setGeometry(QtCore.QRect(330, 80, 16, 160))
+        self.smooth_slider.setMinimum(5)
+        self.smooth_slider.setMaximum(30)
+        self.smooth_slider.setOrientation(QtCore.Qt.Vertical)
+        self.smooth_slider.setObjectName("smooth_slider")
+        self.smooth_label = QtWidgets.QLabel(self.centralwidget)
+        self.smooth_label.setGeometry(QtCore.QRect(300, 250, 64, 17))
+        self.smooth_label.setObjectName("smooth_label")
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
@@ -67,6 +79,8 @@ class Ui_MainWindow(object):
         self.label.setText(_translate("MainWindow", "gain"))
         self.label_2.setText(_translate("MainWindow", "curve"))
         self.label_3.setText(_translate("MainWindow", "radius"))
+        self.label_4.setText(_translate("MainWindow", "smooth"))
+        self.smooth_label.setText(_translate("MainWindow", "TextLabel"))
 
 
 
