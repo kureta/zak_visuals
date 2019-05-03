@@ -103,13 +103,21 @@ class RenderZak(QThread):
         self.video_idx = 1
         self.mix_video = False
 
+        self.permutation = np.arange(128)
         self.patch_bay = np.identity(128)
+        self.patch_bypass = 0
 
     def change_video_idx(self):
         self.video_idx = np.random.randint(9) + 1
 
+    def reset_idt(self):
+        idt = np.identity(128)
+        idt[:self.patch_bypass, :] = 0.
+        self.patch_bay = idt[self.permutation]
+
     def reshuffle_patch_bay(self):
-        np.random.shuffle(self.patch_bay)
+        self.reset_idt()
+        self.permutation = np.random.permutation(self.permutation)
 
     def run(self):
         with client:
@@ -127,7 +135,9 @@ class RenderZak(QThread):
                 while True:
                     event.wait()
                     features = specs[:smooth].mean(axis=0)
+
                     features = self.patch_bay @ features
+
                     amplis = amps[:smooth].mean()
                     amplis = (amplis ** self.curve * self.gain)
 
@@ -194,6 +204,8 @@ def main():
         p.rgb = (ui.rgb_slider.value() / 1000) * 50.
         p.video_mix = (ui.video_mix_slider.value() / 1000)
         p.mix_video = ui.video_mix_checkbox.checkState()
+        p.patch_bypass = ui.patch_slider.value()
+        p.reset_idt()
         smooth = ui.smooth_slider.value()
 
         ui.curve_label.setText(f'{p.curve:.4f}')
@@ -201,6 +213,7 @@ def main():
         ui.rgb_label.setText(f'{p.rgb:.4f}')
         ui.video_mix_label.setText(f'{p.video_mix:.4f}')
         ui.smooth_label.setText(f'{smooth}')
+        ui.patch_label.setText(f'{p.patch_bypass}')
 
     ui.gain_slider.valueChanged.connect(set_values)
     ui.curve_slider.valueChanged.connect(set_values)
@@ -208,6 +221,7 @@ def main():
     ui.video_mix_slider.valueChanged.connect(set_values)
     ui.video_mix_checkbox.clicked.connect(set_values)
     ui.smooth_slider.valueChanged.connect(set_values)
+    ui.patch_slider.valueChanged.connect(set_values)
 
     main_window.show()
     sys.exit(app.exec_())
