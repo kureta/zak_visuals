@@ -34,7 +34,7 @@ parser.add_argument('--WS', action='store_true', help='use WeightScale in G and 
 parser.add_argument('--PN', action='store_true', help='use PixelNorm in G')
 
 # TODO: Try n_iter = 20
-parser.add_argument('--n_iter', type=int, default=10, help='number of epochs to train before changing the progress')
+parser.add_argument('--n_iter', type=int, default=20, help='number of epochs to train before changing the progress')
 parser.add_argument('--lambdaGP', type=float, default=10, help='lambda for gradient penalty')
 parser.add_argument('--gamma', type=float, default=1, help='gamma for gradient penalty')
 parser.add_argument('--e_drift', type=float, default=0.001, help='epsilon drift for discriminator loss')
@@ -50,10 +50,6 @@ print(opt)
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_RES = opt.max_res  # maximum resolution = 4 * 2^MAX_RES
-
-# TODO: Try num_frames = 350
-videos = [Video(idx, (1024, 1024), num_frames=200) for idx in range(9)]
-dataset = ConcatDataset(videos)
 
 # creating output folders
 if not os.path.exists(opt.outd):
@@ -89,6 +85,9 @@ z_save = hypersphere(torch.randn(opt.savenum, opt.nch * 32, 1, 1, device=DEVICE)
 P.progress(epoch, 1, total)
 GP.batchSize = P.batchSize
 # Creation of DataLoader
+# TODO: Try num_frames = 350
+videos = [Video(idx, (1024, 1024), num_frames=300) for idx in range(9)]
+dataset = ConcatDataset(videos)
 data_loader = DataLoader(dataset,
                          batch_size=P.batchSize,
                          shuffle=True,
@@ -110,13 +109,17 @@ while True:
     if P.batchSize != data_loader.batch_size:
         # update batch-size in gradient penalty
         GP.batchSize = P.batchSize
-        # modify DataLoader at each change in resolution to vary the batch-size as the resolution increases
-        data_loader = DataLoader(dataset,
-                                 batch_size=P.batchSize,
-                                 shuffle=True,
-                                 num_workers=opt.workers,
-                                 drop_last=True,
-                                 pin_memory=False)
+
+    # TODO: Try num_frames = 350
+    videos = [Video(idx, (1024, 1024), num_frames=300) for idx in range(9)]
+    dataset = ConcatDataset(videos)
+    # modify DataLoader at each change in resolution to vary the batch-size as the resolution increases
+    data_loader = DataLoader(dataset,
+                             batch_size=P.batchSize,
+                             shuffle=True,
+                             num_workers=opt.workers,
+                             drop_last=True,
+                             pin_memory=False)
 
     total = len(data_loader)
 
