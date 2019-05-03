@@ -101,9 +101,15 @@ class RenderZak(QThread):
         self.video_mix = 0.
         self.base_path = '/home/kureta/Videos/Rendered/{}.mov'
         self.video_idx = 1
+        self.mix_video = False
+
+        self.patch_bay = np.identity(128)
 
     def change_video_idx(self):
         self.video_idx = np.random.randint(9) + 1
+
+    def reshuffle_patch_bay(self):
+        np.random.shuffle(self.patch_bay)
 
     def run(self):
         with client:
@@ -111,7 +117,6 @@ class RenderZak(QThread):
             cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
             current_video_idx = self.video_idx
-            shit = self.base_path.format(current_video_idx)
             cap = cv2.VideoCapture(self.base_path.format(current_video_idx))
             length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             cap.set(cv2.CAP_PROP_POS_FRAMES, np.random.randint(length))
@@ -122,6 +127,7 @@ class RenderZak(QThread):
                 while True:
                     event.wait()
                     features = specs[:smooth].mean(axis=0)
+                    features = self.patch_bay @ features
                     amplis = amps[:smooth].mean()
                     amplis = (amplis ** self.curve * self.gain)
 
@@ -138,18 +144,18 @@ class RenderZak(QThread):
 
                     frame = cv2.resize(image, (1920, 1080)) * amplis
                     frame = (frame * 255).astype('uint8')
-
-                    result, video_frame = cap.read()
-                    if (not result) or current_video_idx != self.video_idx:
-                        current_video_idx = self.video_idx
-                        cap = cv2.VideoCapture(self.base_path.format(current_video_idx))
-                        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, np.random.randint(length))
-                        result, video_frame = cap.read()
-
                     frame = np.repeat(frame[:, :, np.newaxis], 3, axis=2)
-                    frame = cv2.addWeighted(video_frame, self.video_mix,
-                                            frame, 1 - self.video_mix, 0.)
+
+                    if self.mix_video:
+                        result, video_frame = cap.read()
+                        if (not result) or current_video_idx != self.video_idx:
+                            current_video_idx = self.video_idx
+                            cap = cv2.VideoCapture(self.base_path.format(current_video_idx))
+                            length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, np.random.randint(length))
+                            result, video_frame = cap.read()
+                        frame = cv2.addWeighted(video_frame, self.video_mix,
+                                                frame, 1 - self.video_mix, 0.)
 
                     for idx in range(3):
                         shift = np.random.normal(0, self.rgb, (3, 2)).astype('float32')
@@ -179,6 +185,7 @@ def main():
     p = RenderZak()
     ui.run_button.clicked.connect(p.run)
     ui.video_mix_button.clicked.connect(p.change_video_idx)
+    ui.patch_button.clicked.connect(p.reshuffle_patch_bay)
 
     def set_values():
         global smooth
@@ -186,6 +193,7 @@ def main():
         p.curve = (ui.curve_slider.value() / 1000)
         p.rgb = (ui.rgb_slider.value() / 1000) * 50.
         p.video_mix = (ui.video_mix_slider.value() / 1000)
+        p.mix_video = ui.video_mix_checkbox.checkState()
         smooth = ui.smooth_slider.value()
 
         ui.curve_label.setText(f'{p.curve:.4f}')
@@ -198,6 +206,7 @@ def main():
     ui.curve_slider.valueChanged.connect(set_values)
     ui.rgb_slider.valueChanged.connect(set_values)
     ui.video_mix_slider.valueChanged.connect(set_values)
+    ui.video_mix_checkbox.clicked.connect(set_values)
     ui.smooth_slider.valueChanged.connect(set_values)
 
     main_window.show()
