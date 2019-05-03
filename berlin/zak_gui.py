@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import *
 from berlin.pg_gan.model import Generator
 from berlin.ui.main import Ui_MainWindow
 
-G: Generator = torch.load('/home/kureta/Documents/repos/berlin/saves/zak1/models/Gs_nch-4_epoch-198.pth').cuda()
+G: Generator = torch.load('/home/kureta/Documents/repos/berlin/saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
 mean = np.load('mel_mean.npy')
 std = np.load('mel_std.npy')
 
