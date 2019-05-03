@@ -52,7 +52,7 @@ class Ui_MainWindow(object):
         self.label_4.setObjectName("label_4")
         self.smooth_slider = QtWidgets.QSlider(self.centralwidget)
         self.smooth_slider.setGeometry(QtCore.QRect(190, 50, 16, 160))
-        self.smooth_slider.setMinimum(5)
+        self.smooth_slider.setMinimum(1)
         self.smooth_slider.setMaximum(30)
         self.smooth_slider.setOrientation(QtCore.Qt.Vertical)
         self.smooth_slider.setObjectName("smooth_slider")
