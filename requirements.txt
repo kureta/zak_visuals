@@ -1,0 +1,14 @@
+numpy
+matplotlib
+essentia
+jack-client
+opencv-python
+torch_nightly
+torchvision_nightly
+ipykernel
+ipywidgets
+ffmpeg
+scikit-video
+h5py
+pyqt5
+pyqt5-stubs
