@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import *
 from berlin.pg_gan.model import Generator
 from berlin.ui.main import Ui_MainWindow
 
-G: Generator = torch.load('/home/kureta/Documents/repos/berlin/saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
+G: Generator = torch.load('saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
 mean = np.load('mel_mean.npy')
 std = np.load('mel_std.npy')
 
@@ -99,7 +99,7 @@ class RenderZak(QThread):
         self.curve = 0.
         self.rgb = 0.
         self.video_mix = 0.
-        self.base_path = '/home/kureta/Videos/Rendered/{}.mov'
+        self.base_path = '/run/media/kureta/data/datasets/berlin/rendered-video/{}.mov'
         self.video_idx = 1
         self.mix_video = False
 
@@ -200,7 +200,7 @@ def main():
     def set_values():
         global smooth
         p.gain = (ui.gain_slider.value() / 1000) * 5.
-        p.curve = (ui.curve_slider.value() / 1000)
+        p.curve = (ui.curve_slider.value() / 1000) * 3.
         p.rgb = (ui.rgb_slider.value() / 1000) * 50.
         p.video_mix = (ui.video_mix_slider.value() / 1000)
         p.mix_video = ui.video_mix_checkbox.checkState()
