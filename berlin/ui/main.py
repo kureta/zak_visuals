@@ -102,7 +102,7 @@ class Ui_MainWindow(object):
         self.patch_slider = QtWidgets.QSlider(self.centralwidget)
         self.patch_slider.setGeometry(QtCore.QRect(430, 50, 16, 160))
         self.patch_slider.setMinimum(0)
-        self.patch_slider.setMaximum(127)
+        self.patch_slider.setMaximum(126)
         self.patch_slider.setOrientation(QtCore.Qt.Vertical)
         self.patch_slider.setObjectName("patch_slider")
         self.patch_button = QtWidgets.QPushButton(self.centralwidget)
