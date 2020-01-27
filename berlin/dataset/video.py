@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-VIDEO_DIR = '/home/kureta/Videos/Rendered/'
+VIDEO_DIR = '/mnt/fad02469-bb9a-4dec-a21e-8b2babc96027/datasets/berlin/rendered-video/'
 VIDEO_FILE_NAME = '{}.mov'
 AUDIO_FILE_NAME = '{}.wav'
 NUM_VIDEOS = 9

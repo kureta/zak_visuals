@@ -99,7 +99,7 @@ class RenderZak(QThread):
         self.curve = 0.
         self.rgb = 0.
         self.video_mix = 0.
-        self.base_path = '/run/media/kureta/data/datasets/berlin/rendered-video/{}.mov'
+        self.base_path = '/mnt/fad02469-bb9a-4dec-a21e-8b2babc96027/datasets/berlin/rendered-video/{}.mov'
         self.video_idx = 1
         self.mix_video = False
 
