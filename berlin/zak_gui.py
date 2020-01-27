@@ -6,8 +6,8 @@ import essentia.standard as es
 import jack
 import numpy as np
 import torch
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
+from PySide2.QtCore import *
+from PySide2.QtWidgets import *
 
 from berlin.pg_gan.model import Generator
 from berlin.ui.main import Ui_MainWindow
