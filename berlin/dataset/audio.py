@@ -2,16 +2,17 @@ import os
 
 import essentia.standard as es
 import numpy as np
-import torch
 from numpy.lib.stride_tricks import as_strided
 from torch.utils.data import Dataset
 
-VIDEO_DIR = '/home/kureta/Videos/Rendered/'
+VIDEO_DIR = '/mnt/fad02469-bb9a-4dec-a21e-8b2babc96027/datasets/berlin/rendered-video'
+VIDEO_FILE_NAME = '{}.mov'
 AUDIO_FILE_NAME = '{}.wav'
+NUM_VIDEOS = 9
 
 
 class Audio(Dataset):
-    def __init__(self, video_idx, limit=None):
+    def __init__(self, video_idx):
         super(Audio, self).__init__()
 
         audio_path = os.path.join(VIDEO_DIR, AUDIO_FILE_NAME.format(video_idx + 1))
@@ -33,8 +34,6 @@ class Audio(Dataset):
                                  (self.length, 2048),
                                  ((48000 // 25) * self.audio.strides[0], self.audio.strides[0]),
                                  writeable=False)
-        if limit:
-            self.length = limit
 
     def __len__(self):
         return self.length
@@ -44,6 +43,5 @@ class Audio(Dataset):
         value = self.window(value)
         value = self.spectrum(value)
         value = self.mel(value)
-        value = torch.from_numpy(value)
 
         return value, self.label

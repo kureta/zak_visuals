@@ -13,10 +13,10 @@ from berlin.dataset.audio import VIDEO_DIR, AUDIO_FILE_NAME
 import torch
 from torch.utils.data import ConcatDataset
 
-G: Generator = torch.load('/home/kureta/Documents/repos/berlin/saves/zak1/models/Gs_nch-4_epoch-198.pth').cuda()
+G: Generator = torch.load('/home/kureta/Documents/repos/berlin/saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
 
 ########
-x = es.MonoLoader(filename='/home/kureta/Music/misc/untitled.wav')()
+x = es.MonoLoader(filename='/mnt/fad02469-bb9a-4dec-a21e-8b2babc96027/datasets/audio/misc/untitled.wav')()
 window = es.Windowing(type='hann', size=2048)
 spectrum = es.Spectrum(size=2048)
 mel_bands = es.MelBands(inputSize=1025,

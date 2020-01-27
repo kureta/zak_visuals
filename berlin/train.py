@@ -49,6 +49,7 @@ opt = parser.parse_args()
 print(opt)
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print(DEVICE)
 MAX_RES = opt.max_res  # maximum resolution = 4 * 2^MAX_RES
 
 # creating output folders
