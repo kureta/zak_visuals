@@ -3,8 +3,8 @@ matplotlib
 essentia
 jack-client
 opencv-python
-torch_nightly
-torchvision_nightly
+torch
+torchvision
 ipykernel
 ipywidgets
 ffmpeg
