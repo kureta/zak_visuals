@@ -7,9 +7,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from torch.optim import Adam
-from torch.utils.data import ConcatDataset
+from torch.utils.data import ConcatDataset, Dataset
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
+import torchvision.transforms.functional as tvf
 
 from berlin.dataset.video import Video
 from berlin.pg_gan.model import *
@@ -25,7 +26,7 @@ parser.add_argument('--outf', default='Images', help='folder to save synthetic i
 parser.add_argument('--outl', default='Losses', help='folder to save Losses')
 parser.add_argument('--outm', default='Models', help='folder to save models')
 
-parser.add_argument('--workers', type=int, default=0, help='number of data loading workers')
+parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
 parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4, 4],
                     help='list of batch sizes during the training')
 parser.add_argument('--nch', type=int, default=4, help='base number of channel for networks')
@@ -34,7 +35,7 @@ parser.add_argument('--WS', action='store_true', help='use WeightScale in G and 
 parser.add_argument('--PN', action='store_true', help='use PixelNorm in G')
 
 # TODO: Try n_iter = 20
-parser.add_argument('--n_iter', type=int, default=20, help='number of epochs to train before changing the progress')
+parser.add_argument('--n_iter', type=int, default=2, help='number of epochs to train before changing the progress')
 parser.add_argument('--lambdaGP', type=float, default=10, help='lambda for gradient penalty')
 parser.add_argument('--gamma', type=float, default=1, help='gamma for gradient penalty')
 parser.add_argument('--e_drift', type=float, default=0.001, help='epsilon drift for discriminator loss')
@@ -85,10 +86,26 @@ z_save = hypersphere(torch.randn(opt.savenum, opt.nch * 32, 1, 1, device=DEVICE)
 
 P.progress(epoch, 1, total)
 GP.batchSize = P.batchSize
+
+from PIL import Image
+
+
+class Frames(Dataset):
+    def __init__(self):
+        self.path = '/home/kureta/Videos/frames/'
+        self.data_files = os.listdir(self.path)
+
+    def __getitem__(self, idx):
+        file_name = self.data_files[idx]
+        return tvf.to_tensor(tvf.to_grayscale(Image.open(self.path + file_name), 1)), file_name.split('-')[0]
+
+    def __len__(self):
+        return len(self.data_files)
+
+
 # Creation of DataLoader
 # TODO: Try num_frames = 350
-videos = [Video(idx, (1024, 1024), num_frames=300) for idx in range(9)]
-dataset = ConcatDataset(videos)
+dataset = Frames()
 data_loader = DataLoader(dataset,
                          batch_size=P.batchSize,
                          shuffle=True,
@@ -111,9 +128,6 @@ while True:
         # update batch-size in gradient penalty
         GP.batchSize = P.batchSize
 
-    # TODO: Try num_frames = 350
-    videos = [Video(idx, (1024, 1024), num_frames=300) for idx in range(9)]
-    dataset = ConcatDataset(videos)
     # modify DataLoader at each change in resolution to vary the batch-size as the resolution increases
     data_loader = DataLoader(dataset,
                              batch_size=P.batchSize,
@@ -189,14 +203,14 @@ while True:
                          length=20,
                          prefix=f'Epoch {epoch} ',
                          suffix=f', d_loss: {d_loss.item():.3f}'
-                         f', d_loss_W: {d_loss_W.item():.3f}'
-                         f', GP: {gradient_penalty.item():.3f}'
-                         f', progress: {P.p:.2f}')
+                                f', d_loss_W: {d_loss_W.item():.3f}'
+                                f', GP: {gradient_penalty.item():.3f}'
+                                f', progress: {P.p:.2f}')
 
     printProgressBar(total, total,
                      done=f'Epoch [{epoch:>3d}]  d_loss: {np.mean(lossEpochD):.4f}'
-                     f', d_loss_W: {np.mean(lossEpochD_W):.3f}'
-                     f', progress: {P.p:.2f}, time: {time() - t0:.2f}s'
+                          f', d_loss_W: {np.mean(lossEpochD_W):.3f}'
+                          f', progress: {P.p:.2f}, time: {time() - t0:.2f}s'
                      )
 
     d_losses = np.append(d_losses, lossEpochD)
