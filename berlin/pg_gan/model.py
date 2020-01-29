@@ -64,7 +64,7 @@ class Generator(nn.Module):
         y0 = y1
 
         for i in range(1, int(ceil(progress) + 1)):
-            y1 = F.upsample(y1, scale_factor=2)
+            y1 = F.interpolate(y1, scale_factor=2)
             y0 = y1
             y1 = self.blocks[i](y0)
 
