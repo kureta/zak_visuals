@@ -6,19 +6,18 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-numpy = "*"
-matplotlib = "*"
-essentia = "*"
-jack-client = "*"
-opencv-python = "*"
-torchvision = {editable = true,path = "/home/kureta/Documents/other_repos/vision"}
-torch = {file = "/home/kureta/Documents/other_repos/pytorch/dist/torch-1.1.0a0+47c0a49-cp37-cp37m-linux_x86_64.whl"}
+numpy = "~=1.16.3"
+matplotlib = "~=3.1.0rc1"
+essentia = "~=2.1b5.dev532"
+jack-client = "~=0.4.6"
+opencv-python = "~=4.1.0.25"
+torchvision-nightly = "~=0.2.3"
+torch-nightly = "==1.1.0.dev20190424"
 pytorch-ignite = {editable = true,path = "/home/kureta/Documents/other_repos/ignite"}
-ipykernel = "*"
-ipywidgets = "*"
-ffmpeg = "*"
-scikit-video = "*"
-h5py = "*"
+ipykernel = "~=5.1.0"
+ipywidgets = "~=7.4.2"
+ffmpeg = "~=1.4"
+scikit-video = "~=1.1.11"
 
 [requires]
 python_version = "3.7"
