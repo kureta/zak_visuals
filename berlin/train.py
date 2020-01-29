@@ -240,7 +240,7 @@ while True:
             fake_images = Gs(z_save, P.p)
             if opt.savemaxsize:
                 if fake_images.size(-1) != 4 * 2 ** MAX_RES:
-                    fake_images = F.upsample(fake_images, 4 * 2 ** MAX_RES)
+                    fake_images = F.interpolate(fake_images, 4 * 2 ** MAX_RES)
         save_image(fake_images,
                    os.path.join(opt.outd, opt.outf, f'fake_images-{epoch:04d}-p{P.p:.2f}.png'),
                    nrow=8, pad_value=0,

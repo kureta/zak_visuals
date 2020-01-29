@@ -1,230 +1,214 @@
-import queue
+import multiprocessing as mp
+import signal
 import threading
 
 import cv2
-import essentia.standard as es
 import jack
+import librosa
 import numpy as np
 import torch
-from PySide2.QtCore import *
-from PySide2.QtWidgets import *
+from pythonosc import dispatcher
+from pythonosc import osc_server
 
 from berlin.pg_gan.model import Generator
-from berlin.ui.main import Ui_MainWindow
-
-G: Generator = torch.load('saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
-mean = np.load('mel_mean.npy')
-std = np.load('mel_std.npy')
-
-event = threading.Event()
-
-smooth = 30
-specs = np.zeros((smooth, 128))
-amps = np.zeros(smooth)
-specs_queue = queue.Queue()
 
 
-def specs_manager():
-    global specs
-    idx = 0
-    while True:
-        s, a = specs_queue.get()
-        specs[idx % smooth] = s
-        amps[idx % smooth] = a
-        idx += 1
-        specs_queue.task_done()
-
-
-def launch_daemon(manager):
-    t = threading.Thread(target=manager)
-    t.daemon = True
-    t.start()
-    del t
-
-
-def hypersphere(z, radius=1.):
-    return (z / np.linalg.norm(z, ord=2)) * radius
-
-
-client = jack.Client('Zak')
-
-if client.status.server_started:
-    print('JACK server started')
-if client.status.name_not_unique:
-    print('unique name {0!r} assigned'.format(client.name))
-
-# create two port pairs
-for number in 1, 2:
-    client.inports.register('input_{0}'.format(number))
-
-
-@client.set_process_callback
-def process(frames):
-    assert frames == client.blocksize
-    lolo = []
-    amplis = []
-    for i in client.inports:
-        buffer = i.get_array().astype('float32')
-        sp = spectrum(window(buffer))
-        lolo.append((mel_bands(sp) - mean) / std)
-
-        amplis.append(np.sqrt((buffer * buffer).mean()))
-
-    amp = sum(amplis)
-    specs_queue.put((np.concatenate(lolo), amp))
-    event.set()
-
-
-@client.set_shutdown_callback
-def shutdown(status, reason):
-    print('JACK shutdown!')
-    print('status:', status)
-    print('reason:', reason)
-    event.set()
-
-
-window = es.Windowing(type='hann', size=2048)
-spectrum = es.Spectrum(size=2048)
-mel_bands = es.MelBands(inputSize=1025,
-                        highFrequencyBound=12000,
-                        lowFrequencyBound=46.875,
-                        numberBands=64, sampleRate=48000)
-
-
-class RenderZak(QThread):
+class BaseProcess:
     def __init__(self):
-        QThread.__init__(self)
+        self.processor = mp.Process(target=self.process)
+        self.exit = mp.Event()
 
-        self.gain = 0.
-        self.curve = 0.
-        self.rgb = 0.
-        self.video_mix = 0.
-        self.base_path = '/mnt/fad02469-bb9a-4dec-a21e-8b2babc96027/datasets/berlin/rendered-video/{}.mov'
-        self.video_idx = 1
-        self.mix_video = False
+    def start(self):
+        self.processor.start()
 
-        self.permutation = np.arange(128)
-        self.patch_bay = np.identity(128)
-        self.patch_bypass = 0
+    def stop(self):
+        self.exit.set()
+        self.processor.terminate()
 
-    def change_video_idx(self):
-        self.video_idx = np.random.randint(9) + 1
+    def process(self):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-    def reset_idt(self):
-        idt = np.identity(128)
-        idt[:self.patch_bypass, :] = 0.
-        self.patch_bay = idt[self.permutation]
+        self.setup()
+        while not self.exit.is_set():
+            self.run()
 
-    def reshuffle_patch_bay(self):
-        self.reset_idt()
-        self.permutation = np.random.permutation(self.permutation)
+        print(f'Exiting {self.__class__.__name__} process.')
+
+    def setup(self):
+        pass
 
     def run(self):
-        with client:
-            cv2.namedWindow('frame', cv2.WND_PROP_FULLSCREEN)
-            cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        raise NotImplemented
 
-            current_video_idx = self.video_idx
-            cap = cv2.VideoCapture(self.base_path.format(current_video_idx))
-            length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            cap.set(cv2.CAP_PROP_POS_FRAMES, np.random.randint(length))
 
-            print('Press Ctrl+C to stop')
-            base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
-            try:
-                while True:
-                    event.wait()
-                    features = specs[:smooth].mean(axis=0)
+class App:
+    def __init__(self):
+        self.manager = mp.Manager()
+        self.osc_parameters = self.manager.Namespace()
+        self.osc_parameters.rgb_intensity = 0.0
+        self.osc_client = OSCClient(self.osc_parameters)
 
-                    features = self.patch_bay @ features
+        self.buffer = mp.Queue(maxsize=1)
+        self.cqt = mp.Queue(maxsize=1)
+        self.image = mp.Queue(maxsize=1)
+        self.imfx = mp.Queue(maxsize=1)
 
-                    amplis = amps[:smooth].mean()
-                    amplis = (amplis ** self.curve * self.gain)
+        self.jack_input = JACKInput(self.buffer)
+        self.audio_processor = AudioProcessor(self.buffer, self.cqt)
+        self.image_generator = ImageGenerator(self.cqt, self.image)
+        self.image_fx = ImageFX(self.image, self.imfx, self.osc_parameters)
+        self.image_display = ImageDisplay(self.imfx)
 
-                    features = hypersphere(features)
+    def run(self):
+        self.osc_client.start()
 
-                    features = torch.from_numpy(features.astype('float32'))
-                    features.unsqueeze_(0).unsqueeze_(2).unsqueeze_(3)
-                    features = features.cuda()
-                    with torch.no_grad():
-                        image = G(features)
-                    image.squeeze_(0).squeeze_(0)
-                    image = (image + 1) / 2
-                    image = image.cpu().numpy()
+        self.audio_processor.start()
+        self.image_generator.start()
+        self.image_fx.start()
+        self.image_display.start()
 
-                    frame = cv2.resize(image, (1920, 1080)) * amplis
-                    frame = (frame * 255).astype('uint8')
-                    frame = np.repeat(frame[:, :, np.newaxis], 3, axis=2)
+        # jack_input is the last process to start
+        self.jack_input.start()
 
-                    if self.mix_video:
-                        result, video_frame = cap.read()
-                        if (not result) or current_video_idx != self.video_idx:
-                            current_video_idx = self.video_idx
-                            cap = cv2.VideoCapture(self.base_path.format(current_video_idx))
-                            length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                            cap.set(cv2.CAP_PROP_POS_FRAMES, np.random.randint(length))
-                            result, video_frame = cap.read()
-                        frame = cv2.addWeighted(video_frame, self.video_mix,
-                                                frame, 1 - self.video_mix, 0.)
+    def exit(self, signals, frame_type):
+        self.osc_client.stop()
 
-                    for idx in range(3):
-                        shift = np.random.normal(0, self.rgb, (3, 2)).astype('float32')
-                        m = cv2.getAffineTransform(base_points, base_points + shift)
-                        frame[:, :, idx] = cv2.warpAffine(frame[:, :, idx], m, (1920, 1080))
+        self.image_display.stop()
+        self.image_fx.stop()
+        self.image_generator.stop()
+        self.audio_processor.stop()
+        self.jack_input.stop()
 
-                    cv2.imshow('frame', frame)
 
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        cv2.destroyAllWindows()
-                        break
+class JACKInput:
+    def __init__(self, buffer: mp.Queue):
+        self.buffer = buffer
+        self.client = jack.Client('Zak')
+        self.inport: jack.OwnPort = self.client.inports.register('input_1')
+        self.exit = threading.Event()
+        self.client.set_process_callback(self.read_buffer)
 
-                    event.clear()
-            except KeyboardInterrupt:
-                print('\nInterrupted by user')
+    def read_buffer(self, frames: int):
+        assert frames == self.client.blocksize
+        buffer = self.inport.get_array().astype('float32')
+        self.buffer.put(buffer)
+
+    def start(self):
+        sysport: jack.Port = self.client.get_ports(is_audio=True, is_output=True, is_physical=True)[0]
+
+        with self.client:
+            self.client.connect(sysport, self.inport)
+
+            self.exit.wait()
+            print(f'Exiting {self.__class__.__name__} process...')
+
+    def stop(self):
+        self.exit.set()
+
+
+class AudioProcessor(BaseProcess):
+    def __init__(self, buffer: mp.Queue, cqt: mp.Queue):
+        super().__init__()
+        self.buffer = buffer
+        self.cqt = cqt
+
+    def run(self):
+        buffer = self.buffer.get()
+        cqt = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False)
+        self.cqt.put(cqt)
+
+
+class ImageGenerator(BaseProcess):
+    def __init__(self, cqt: mp.Queue, image: mp.Queue):
+        super().__init__()
+        self.cqt = cqt
+        self.image = image
+        self.generator = None
+
+    def setup(self):
+        self.generator: Generator = torch.load('saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
+
+    def run(self):
+        cqt = self.cqt.get()
+        features = np.zeros((1, 128, 1, 1), dtype='float32')
+        features[0, :, 0, 0] = np.abs(cqt[:128, 0]).astype('float32')
+        features = torch.from_numpy(features).cuda()
+        with torch.no_grad():
+            image = self.generator(features)
+            image = torch.nn.functional.interpolate(image, (1920, 1080))
+
+            image = (image + 1) / 2
+            image = image * 255
+            image.squeeze_(0)
+            image = image.permute(1, 2, 0)
+            image = image.expand(1920, 1080, 3)
+
+            image = image.cpu().numpy().astype('uint8')
+
+        self.image.put(image)
+
+
+class ImageFX(BaseProcess):
+    def __init__(self, image: mp.Queue, imfx: mp.Queue, osc_parameters):
+        super().__init__()
+        self.image = image
+        self.imfx = imfx
+        self.osc_parameters = osc_parameters
+
+    def run(self):
+        image = self.image.get()
+
+        base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
+        rgb = self.osc_parameters.rgb_intensity
+        for idx in range(3):
+            shift = np.random.normal(0, rgb, (3, 2)).astype('float32')
+            m = cv2.getAffineTransform(base_points, base_points + shift)
+            image[:, :, idx] = cv2.warpAffine(image[:, :, idx], m, (1080, 1920))
+
+        self.imfx.put(image)
+
+
+# processes were stuck on empty queues
+# maybe ques should modify some global values instead of being directly accessed by processes
+class ImageDisplay(BaseProcess):
+    def __init__(self, imfx: mp.Queue):
+        super().__init__()
+        self.imfx = imfx
+
+    def setup(self):
+        cv2.namedWindow('frame', cv2.WINDOW_FREERATIO)
+        cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
+    def run(self):
+        imfx = self.imfx.get()
+
+        cv2.imshow('frame', imfx)
+        cv2.waitKey(1)
+
+
+class OSCClient(BaseProcess):
+    def __init__(self, osc_parameters):
+        super().__init__()
+        self.osc_parameters = osc_parameters
+        self.dispatcher = dispatcher.Dispatcher()
+        self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
+
+        self.dispatcher.map('/visuals/patch', self.rgb_intensity)
+
+    def rgb_intensity(self, addr, value):
+        self.osc_parameters.rgb_intensity = value * 50
+
+    def process(self):
+        self.server.serve_forever()
+
+    def stop(self):
+        self.server.server_close()
 
 
 def main():
-    import sys
-    app = QApplication(sys.argv)
-    main_window = QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(main_window)
-
-    # other code
-    launch_daemon(specs_manager)
-    p = RenderZak()
-    ui.run_button.clicked.connect(p.run)
-    ui.video_mix_button.clicked.connect(p.change_video_idx)
-    ui.patch_button.clicked.connect(p.reshuffle_patch_bay)
-
-    def set_values():
-        global smooth
-        p.gain = (ui.gain_slider.value() / 1000) * 5.
-        p.curve = (ui.curve_slider.value() / 1000) * 3.
-        p.rgb = (ui.rgb_slider.value() / 1000) * 50.
-        p.video_mix = (ui.video_mix_slider.value() / 1000)
-        p.mix_video = ui.video_mix_checkbox.checkState()
-        p.patch_bypass = ui.patch_slider.value()
-        p.reset_idt()
-        smooth = ui.smooth_slider.value()
-
-        ui.curve_label.setText(f'{p.curve:.4f}')
-        ui.gain_label.setText(f'{p.gain:.4f}')
-        ui.rgb_label.setText(f'{p.rgb:.4f}')
-        ui.video_mix_label.setText(f'{p.video_mix:.4f}')
-        ui.smooth_label.setText(f'{smooth}')
-        ui.patch_label.setText(f'{p.patch_bypass}')
-
-    ui.gain_slider.valueChanged.connect(set_values)
-    ui.curve_slider.valueChanged.connect(set_values)
-    ui.rgb_slider.valueChanged.connect(set_values)
-    ui.video_mix_slider.valueChanged.connect(set_values)
-    ui.video_mix_checkbox.clicked.connect(set_values)
-    ui.smooth_slider.valueChanged.connect(set_values)
-    ui.patch_slider.valueChanged.connect(set_values)
-
-    main_window.show()
-    sys.exit(app.exec_())
+    app = App()
+    signal.signal(signal.SIGINT, app.exit)
+    app.run()
 
 
 if __name__ == '__main__':
