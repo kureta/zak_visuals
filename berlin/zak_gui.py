@@ -14,6 +14,8 @@ from scipy.interpolate import interp1d
 
 from berlin.pg_gan.model import Generator
 
+CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
+
 
 def resample(x, n, kind='cubic'):
     f = interp1d(np.linspace(0, 1, x.size), x, kind)
@@ -21,7 +23,8 @@ def resample(x, n, kind='cubic'):
 
 
 # TODO: Maybe ImageDisplay should be in the main thread
-# TODO: Processes stil don't terminate in a sane way.
+# TODO: Processes stil don't terminate in a sane way. Improved a bit I guess.
+# TODO: OSCParameters should be a global shared state
 class BaseProcess:
     def __init__(self, incoming=None, outgoing=None, osc_params=None):
         if not incoming and not outgoing:
@@ -134,7 +137,7 @@ class JACKInput:
 class AudioProcessor(BaseProcess):
     def run(self):
         try:
-            buffer = self.incoming.get(block=False)
+            buffer = self.incoming.get(timeout=1)
         except queue.Empty:
             return
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
@@ -147,16 +150,21 @@ class AudioProcessor(BaseProcess):
 
 class ImageGenerator(BaseProcess):
     def setup(self):
-        self.generator: Generator = torch.load('saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
+        if torch.cuda.is_available():
+            self.generator: Generator = torch.load(CHECKPOINT_PATH)
+        else:
+            self.generator: Generator = torch.load(CHECKPOINT_PATH, map_location=torch.device('cpu'))
 
     def run(self):
         try:
-            stft = self.incoming.get(block=False)
+            stft = self.incoming.get(timeout=1)
         except queue.Empty:
             return
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
-        features = torch.from_numpy(features).cuda()
+        features = torch.from_numpy(features)
+        if torch.cuda.is_available():
+            features = features.cuda()
         with torch.no_grad():
             image = self.generator(features)
             image = torch.nn.functional.interpolate(image, (1920, 1080))
@@ -175,7 +183,7 @@ class ImageGenerator(BaseProcess):
 class ImageFX(BaseProcess):
     def run(self):
         try:
-            image = self.incoming.get(block=False)
+            image = self.incoming.get(timeout=1)
         except queue.Empty:
             return
 
@@ -201,7 +209,7 @@ class ImageDisplay(BaseProcess):
 
     def run(self):
         try:
-            image = self.incoming.get(block=False)
+            image = self.incoming.get(timeout=1)
         except queue.Empty:
             return
 
