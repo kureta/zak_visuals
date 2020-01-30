@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import queue
 import signal
 import threading
 
@@ -13,6 +14,10 @@ from pythonosc import osc_server
 from berlin.pg_gan.model import Generator
 
 
+# TODO: OSCClient is in fact an OSCServer
+# TODO: OSCClient shutdown deadlocks so we terminate. Fix it.
+# TODO: Jack input should be its own thread
+# TODO: Maybe ImageDisplay should be in the main thread
 class BaseProcess:
     def __init__(self):
         self.processor = mp.Process(target=self.process)
@@ -22,8 +27,9 @@ class BaseProcess:
         self.processor.start()
 
     def stop(self):
+        print(f'Exiting {self.__class__.__name__}.')
         self.exit.set()
-        self.processor.terminate()
+        self.processor.join()
 
     def process(self):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -32,7 +38,7 @@ class BaseProcess:
         while not self.exit.is_set():
             self.run()
 
-        print(f'Exiting {self.__class__.__name__} process.')
+        print(f'{self.__class__.__name__} is kill!')
 
     def setup(self):
         pass
@@ -70,14 +76,13 @@ class App:
         # jack_input is the last process to start
         self.jack_input.start()
 
-    def exit(self, signals, frame_type):
-        self.osc_client.stop()
-
-        self.image_display.stop()
-        self.image_fx.stop()
-        self.image_generator.stop()
-        self.audio_processor.stop()
+    def exit_handler(self, signals, frame_type):
         self.jack_input.stop()
+        self.audio_processor.stop()
+        self.image_generator.stop()
+        self.image_fx.stop()
+        self.image_display.stop()
+        self.osc_client.stop()
 
 
 class JACKInput:
@@ -113,7 +118,10 @@ class AudioProcessor(BaseProcess):
         self.cqt = cqt
 
     def run(self):
-        buffer = self.buffer.get()
+        try:
+            buffer = self.buffer.get(block=False)
+        except queue.Empty:
+            return
         cqt = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False)
         self.cqt.put(cqt)
 
@@ -129,7 +137,10 @@ class ImageGenerator(BaseProcess):
         self.generator: Generator = torch.load('saves/zak1.1/Models/Gs_nch-4_epoch-347.pth').cuda()
 
     def run(self):
-        cqt = self.cqt.get()
+        try:
+            cqt = self.cqt.get(block=False)
+        except queue.Empty:
+            return
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = np.abs(cqt[:128, 0]).astype('float32')
         features = torch.from_numpy(features).cuda()
@@ -156,10 +167,16 @@ class ImageFX(BaseProcess):
         self.osc_parameters = osc_parameters
 
     def run(self):
-        image = self.image.get()
+        try:
+            image = self.image.get(block=False)
+        except queue.Empty:
+            return
 
         base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
-        rgb = self.osc_parameters.rgb_intensity
+        try:
+            rgb = self.osc_parameters.rgb_intensity
+        except BrokenPipeError:
+            return
         for idx in range(3):
             shift = np.random.normal(0, rgb, (3, 2)).astype('float32')
             m = cv2.getAffineTransform(base_points, base_points + shift)
@@ -180,15 +197,19 @@ class ImageDisplay(BaseProcess):
         cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     def run(self):
-        imfx = self.imfx.get()
+        try:
+            imfx = self.imfx.get(block=False)
+        except queue.Empty:
+            return
 
         cv2.imshow('frame', imfx)
         cv2.waitKey(1)
 
 
-class OSCClient(BaseProcess):
+class OSCClient:
     def __init__(self, osc_parameters):
         super().__init__()
+        self.processor = mp.Process(target=self.process)
         self.osc_parameters = osc_parameters
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
@@ -199,15 +220,21 @@ class OSCClient(BaseProcess):
         self.osc_parameters.rgb_intensity = value * 50
 
     def process(self):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         self.server.serve_forever()
+        print(f'{self.__class__.__name__} is kill!')
+
+    def start(self):
+        self.processor.start()
 
     def stop(self):
-        self.server.server_close()
+        print(f'Exiting {self.__class__.__name__}')
+        self.processor.terminate()
 
 
 def main():
     app = App()
-    signal.signal(signal.SIGINT, app.exit)
+    signal.signal(signal.SIGINT, app.exit_handler)
     app.run()
 
 
