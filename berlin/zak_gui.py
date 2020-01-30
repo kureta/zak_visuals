@@ -15,15 +15,13 @@ from scipy.interpolate import interp1d
 from berlin.pg_gan.model import Generator
 
 
-# TODO: Jack input should be its own thread
-# TODO: Maybe ImageDisplay should be in the main thread
-# TODO: Processes stil don't terminate in a sane way.
-
 def resample(x, n, kind='cubic'):
     f = interp1d(np.linspace(0, 1, x.size), x, kind)
     return f(np.linspace(0, 1, n))
 
 
+# TODO: Maybe ImageDisplay should be in the main thread
+# TODO: Processes stil don't terminate in a sane way.
 class BaseProcess:
     def __init__(self, incoming=None, outgoing=None, osc_params=None):
         if not incoming and not outgoing:
@@ -43,6 +41,7 @@ class BaseProcess:
         print(f'Exiting {self.__class__.__name__}.')
         self.exit.set()
         self.processor.join()
+        print(f'{self.__class__.__name__} is kill!')
 
     def process(self):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -51,8 +50,6 @@ class BaseProcess:
         while not self.exit.is_set():
             self.run()
         self.teardown()
-
-        print(f'{self.__class__.__name__} is kill!')
 
     def setup(self):
         pass
@@ -82,14 +79,16 @@ class App:
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, osc_params=self.osc_params)
         self.image_display = ImageDisplay(incoming=self.imfx)
 
+        self.exit = threading.Event()
+
     def run(self):
         self.osc_server.start()
+        self.jack_input.start()
         self.audio_processor.start()
         self.image_generator.start()
         self.image_fx.start()
         self.image_display.start()
-        # jack_input is the last process to start
-        self.jack_input.start()
+        self.exit.wait()
 
     def exit_handler(self, signals, frame_type):
         self.jack_input.stop()
@@ -98,6 +97,7 @@ class App:
         self.image_fx.stop()
         self.image_display.stop()
         self.osc_server.stop()
+        self.exit.set()
 
 
 class JACKInput:
@@ -107,23 +107,28 @@ class JACKInput:
         self.inport: jack.OwnPort = self.client.inports.register('input_1')
         self.exit = threading.Event()
         self.client.set_process_callback(self.read_buffer)
+        self.processor = threading.Thread(target=self.process)
 
     def read_buffer(self, frames: int):
         assert frames == self.client.blocksize
         buffer = self.inport.get_array().astype('float32')
         self.buffer.put(buffer)
 
-    def start(self):
+    def process(self):
         sysport: jack.Port = self.client.get_ports(is_audio=True, is_output=True, is_physical=True)[0]
 
         with self.client:
             self.client.connect(sysport, self.inport)
-
             self.exit.wait()
-            print(f'Exiting {self.__class__.__name__} process...')
+
+    def start(self):
+        self.processor.start()
 
     def stop(self):
+        print(f'Exiting {self.__class__.__name__} process...')
         self.exit.set()
+        self.processor.join()
+        print(f'{self.__class__.__name__} is kill!')
 
 
 class AudioProcessor(BaseProcess):
@@ -177,7 +182,7 @@ class ImageFX(BaseProcess):
         base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
         try:
             rgb = self.osc_params.rgb_intensity
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionResetError):
             return
         for idx in range(3):
             shift = np.random.normal(0, rgb, (3, 2)).astype('float32')
@@ -219,7 +224,6 @@ class OSCServer:
 
     def process(self):
         self.server.serve_forever()
-        print(f'{self.__class__.__name__} is kill!')
 
     def start(self):
         self.processor.start()
@@ -228,6 +232,7 @@ class OSCServer:
         print(f'Exiting {self.__class__.__name__}')
         self.server.shutdown()
         self.processor.join()
+        print(f'{self.__class__.__name__} is kill!')
 
 
 def main():
