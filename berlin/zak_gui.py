@@ -15,7 +15,6 @@ from berlin.pg_gan.model import Generator
 
 
 # TODO: OSCClient is in fact an OSCServer
-# TODO: OSCClient shutdown deadlocks so we terminate. Fix it.
 # TODO: Jack input should be its own thread
 # TODO: Maybe ImageDisplay should be in the main thread
 class BaseProcess:
@@ -209,7 +208,7 @@ class ImageDisplay(BaseProcess):
 class OSCClient:
     def __init__(self, osc_parameters):
         super().__init__()
-        self.processor = mp.Process(target=self.process)
+        self.processor = threading.Thread(target=self.process)
         self.osc_parameters = osc_parameters
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
@@ -220,7 +219,6 @@ class OSCClient:
         self.osc_parameters.rgb_intensity = value * 50
 
     def process(self):
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
         self.server.serve_forever()
         print(f'{self.__class__.__name__} is kill!')
 
@@ -229,7 +227,8 @@ class OSCClient:
 
     def stop(self):
         print(f'Exiting {self.__class__.__name__}')
-        self.processor.terminate()
+        self.server.shutdown()
+        self.processor.join()
 
 
 def main():
