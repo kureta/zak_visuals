@@ -10,12 +10,20 @@ import numpy as np
 import torch
 from pythonosc import dispatcher
 from pythonosc import osc_server
+from scipy.interpolate import interp1d
 
 from berlin.pg_gan.model import Generator
 
 
 # TODO: Jack input should be its own thread
 # TODO: Maybe ImageDisplay should be in the main thread
+# TODO: Processes stil don't terminate in a sane way.
+
+def resample(x, n, kind='cubic'):
+    f = interp1d(np.linspace(0, 1, x.size), x, kind)
+    return f(np.linspace(0, 1, n))
+
+
 class BaseProcess:
     def __init__(self, incoming=None, outgoing=None, osc_params=None):
         if not incoming and not outgoing:
@@ -124,7 +132,11 @@ class AudioProcessor(BaseProcess):
             buffer = self.incoming.get(block=False)
         except queue.Empty:
             return
-        stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False)
+        stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
+        stft = np.abs(stft).squeeze(1).astype('float32')
+        stft = 2 * stft / 2048
+        # stft = resample(stft, 128)
+        stft = stft[0:128]
         self.outgoing.put(stft)
 
 
@@ -138,7 +150,7 @@ class ImageGenerator(BaseProcess):
         except queue.Empty:
             return
         features = np.zeros((1, 128, 1, 1), dtype='float32')
-        features[0, :, 0, 0] = np.abs(stft[:128, 0]).astype('float32')
+        features[0, :, 0, 0] = stft
         features = torch.from_numpy(features).cuda()
         with torch.no_grad():
             image = self.generator(features)
