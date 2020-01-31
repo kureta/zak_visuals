@@ -23,15 +23,9 @@ def resample(x, n, kind='cubic'):
 
 
 # TODO: Rename all the things!
-class BaseProcess:
-    def __init__(self, incoming: mp.Queue = None, outgoing: mp.Queue = None, osc_params: managers.Namespace = None):
-        if incoming is None and outgoing is None:
-            raise ValueError('All processes must have at least an input or an output!')
-
-        self.incoming = incoming
-        self.outgoing = outgoing
-        self.osc_params = osc_params
-
+# TODO: We will need multi-input processor nodes.
+class BaseNode:
+    def __init__(self):
         self.processor = mp.Process(target=self.process)
         self.exit = mp.Event()
 
@@ -47,17 +41,68 @@ class BaseProcess:
     def process(self):
         self.setup()
         while not self.exit.is_set():
-            self.run()
+            self._run()
         self.teardown()
 
     def setup(self):
         pass
 
-    def run(self):
+    def _run(self):
         raise NotImplemented
 
     def teardown(self):
         pass
+
+
+class InputNode(BaseNode):
+    def __init__(self, outgoing: mp.Queue):
+        super().__init__()
+        self._outgoing = outgoing
+        self.outgoing = None
+
+    def _run(self):
+        self.run()
+        self._outgoing.put(self.outgoing)
+
+    def run(self):
+        raise NotImplemented
+
+
+class OutputNode(BaseNode):
+    def __init__(self, incoming: mp.Queue):
+        super().__init__()
+        self._incoming = incoming
+        self.incoming = None
+
+    def _run(self):
+        try:
+            self.incoming = self._incoming.get(timeout=1)
+        except queue.Empty:
+            return
+        self.run()
+
+    def run(self):
+        raise NotImplemented
+
+
+class ProcessorNode(BaseNode):
+    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue):
+        super().__init__()
+        self._incoming = incoming
+        self.incoming = None
+        self._outgoing = outgoing
+        self.outgoing = None
+
+    def _run(self):
+        try:
+            self.incoming = self._incoming.get(timeout=1)
+        except queue.Empty:
+            return
+        self.run()
+        self._outgoing.put(self.outgoing)
+
+    def run(self):
+        raise NotImplemented
 
 
 class App:
@@ -74,7 +119,7 @@ class App:
         self.image = mp.Queue(maxsize=1)
         self.imfx = mp.Queue(maxsize=1)
 
-        self.jack_input = JACKInput(self.buffer)
+        self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
         self.image_generator = ImageGenerator(incoming=self.cqt, outgoing=self.image)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, osc_params=self.osc_params)
@@ -100,8 +145,8 @@ class App:
 
 
 class JACKInput:
-    def __init__(self, buffer: mp.Queue):
-        self.buffer = buffer
+    def __init__(self, outgoing: mp.Queue):
+        self.buffer = outgoing
         self.client = jack.Client('Zak')
         self.inport: jack.OwnPort = self.client.inports.register('input_1')
         self.exit = threading.Event()
@@ -130,21 +175,18 @@ class JACKInput:
         print(f'{self.__class__.__name__} is kill!')
 
 
-class AudioProcessor(BaseProcess):
+class AudioProcessor(ProcessorNode):
     def run(self):
-        try:
-            buffer = self.incoming.get(timeout=1)
-        except queue.Empty:
-            return
+        buffer = self.incoming
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
         # stft = resample(stft, 128)
         stft = stft[0:128]
-        self.outgoing.put(stft)
+        self.outgoing = stft
 
 
-class ImageGenerator(BaseProcess):
+class ImageGenerator(ProcessorNode):
     def setup(self):
         if torch.cuda.is_available():
             self.generator: Generator = torch.load(CHECKPOINT_PATH)
@@ -152,10 +194,7 @@ class ImageGenerator(BaseProcess):
             self.generator: Generator = torch.load(CHECKPOINT_PATH, map_location=torch.device('cpu'))
 
     def run(self):
-        try:
-            stft = self.incoming.get(timeout=1)
-        except queue.Empty:
-            return
+        stft = self.incoming
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
         features = torch.from_numpy(features)
@@ -173,15 +212,16 @@ class ImageGenerator(BaseProcess):
 
             image = image.cpu().numpy().astype('uint8')
 
-        self.outgoing.put(image)
+        self.outgoing = image
 
 
-class ImageFX(BaseProcess):
+class ImageFX(ProcessorNode):
+    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, osc_params: managers.Namespace):
+        super().__init__(incoming, outgoing)
+        self.osc_params = osc_params
+
     def run(self):
-        try:
-            image = self.incoming.get(timeout=1)
-        except queue.Empty:
-            return
+        image = self.incoming
 
         base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
         try:
@@ -193,12 +233,12 @@ class ImageFX(BaseProcess):
             m = cv2.getAffineTransform(base_points, base_points + shift)
             image[:, :, idx] = cv2.warpAffine(image[:, :, idx], m, (1080, 1920))
 
-        self.outgoing.put(image)
+        self.outgoing = image
 
 
 # processes were stuck on empty queues
 # maybe ques should modify some global values instead of being directly accessed by processes
-class ImageDisplay(BaseProcess):
+class ImageDisplay(OutputNode):
     def __init__(self, incoming, exit_event):
         super().__init__(incoming=incoming)
         self.exit_event = exit_event
@@ -208,10 +248,7 @@ class ImageDisplay(BaseProcess):
         cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     def run(self):
-        try:
-            image = self.incoming.get(timeout=1)
-        except queue.Empty:
-            return
+        image = self.incoming
 
         cv2.imshow('frame', image)
         if cv2.waitKey(1) == ord('q'):
@@ -219,7 +256,7 @@ class ImageDisplay(BaseProcess):
 
 
 class OSCServer:
-    def __init__(self, osc_params, exit_event: mp.Event):
+    def __init__(self, osc_params: managers.Namespace, exit_event: mp.Event):
         super().__init__()
         self.processor = threading.Thread(target=self.process)
         self.osc_parameters = osc_params
