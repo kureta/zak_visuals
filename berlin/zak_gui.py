@@ -1,6 +1,5 @@
 import multiprocessing as mp
 import queue
-import signal
 import threading
 
 import cv2
@@ -22,9 +21,7 @@ def resample(x, n, kind='cubic'):
     return f(np.linspace(0, 1, n))
 
 
-# TODO: Maybe ImageDisplay should be in the main thread
-# TODO: Processes stil don't terminate in a sane way. Improved a bit I guess.
-# TODO: OSCParameters should be a global shared state
+# TODO: Rename all the things!
 class BaseProcess:
     def __init__(self, incoming=None, outgoing=None, osc_params=None):
         if not incoming and not outgoing:
@@ -47,8 +44,6 @@ class BaseProcess:
         print(f'{self.__class__.__name__} is kill!')
 
     def process(self):
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-
         self.setup()
         while not self.exit.is_set():
             self.run()
@@ -66,6 +61,8 @@ class BaseProcess:
 
 class App:
     def __init__(self):
+        self.exit = mp.Event()
+
         self.manager = mp.Manager()
         self.osc_params = self.manager.Namespace()
         self.osc_params.rgb_intensity = 0.0
@@ -80,9 +77,7 @@ class App:
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
         self.image_generator = ImageGenerator(incoming=self.cqt, outgoing=self.image)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, osc_params=self.osc_params)
-        self.image_display = ImageDisplay(incoming=self.imfx)
-
-        self.exit = threading.Event()
+        self.image_display = ImageDisplay(incoming=self.imfx, exit_event=self.exit)
 
     def run(self):
         self.osc_server.start()
@@ -92,15 +87,15 @@ class App:
         self.image_fx.start()
         self.image_display.start()
         self.exit.wait()
+        self.exit_handler()
 
-    def exit_handler(self, signals, frame_type):
+    def exit_handler(self):
         self.jack_input.stop()
         self.audio_processor.stop()
         self.image_generator.stop()
         self.image_fx.stop()
         self.image_display.stop()
         self.osc_server.stop()
-        self.exit.set()
 
 
 class JACKInput:
@@ -203,6 +198,10 @@ class ImageFX(BaseProcess):
 # processes were stuck on empty queues
 # maybe ques should modify some global values instead of being directly accessed by processes
 class ImageDisplay(BaseProcess):
+    def __init__(self, incoming, exit_event):
+        super().__init__(incoming=incoming)
+        self.exit_event = exit_event
+
     def setup(self):
         cv2.namedWindow('frame', cv2.WINDOW_FREERATIO)
         cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -214,7 +213,8 @@ class ImageDisplay(BaseProcess):
             return
 
         cv2.imshow('frame', image)
-        cv2.waitKey(1)
+        if cv2.waitKey(1) == ord('q'):
+            self.exit_event.set()
 
 
 class OSCServer:
@@ -245,7 +245,6 @@ class OSCServer:
 
 def main():
     app = App()
-    signal.signal(signal.SIGINT, app.exit_handler)
     app.run()
 
 
