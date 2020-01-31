@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import queue
 import threading
+from multiprocessing import managers
 
 import cv2
 import jack
@@ -23,8 +24,8 @@ def resample(x, n, kind='cubic'):
 
 # TODO: Rename all the things!
 class BaseProcess:
-    def __init__(self, incoming=None, outgoing=None, osc_params=None):
-        if not incoming and not outgoing:
+    def __init__(self, incoming: mp.Queue = None, outgoing: mp.Queue = None, osc_params: managers.Namespace = None):
+        if incoming is None and outgoing is None:
             raise ValueError('All processes must have at least an input or an output!')
 
         self.incoming = incoming
@@ -66,7 +67,7 @@ class App:
         self.manager = mp.Manager()
         self.osc_params = self.manager.Namespace()
         self.osc_params.rgb_intensity = 0.0
-        self.osc_server = OSCServer(self.osc_params)
+        self.osc_server = OSCServer(self.osc_params, self.exit)
 
         self.buffer = mp.Queue(maxsize=1)
         self.cqt = mp.Queue(maxsize=1)
@@ -218,14 +219,24 @@ class ImageDisplay(BaseProcess):
 
 
 class OSCServer:
-    def __init__(self, osc_params):
+    def __init__(self, osc_params, exit_event: mp.Event):
         super().__init__()
         self.processor = threading.Thread(target=self.process)
         self.osc_parameters = osc_params
+        self.exit_event = exit_event
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
         self.dispatcher.map('/visuals/patch', self.rgb_intensity)
+        self.dispatcher.map('/visuals/run', self.quit)
+        self.dispatcher.set_default_handler(self.unknown_message)
+
+    def quit(self, addr, value):
+        self.exit_event.set()
+
+    @staticmethod
+    def unknown_message(addr, values):
+        print(f'addr: {addr}', f'values: {values}')
 
     def rgb_intensity(self, addr, value):
         self.osc_parameters.rgb_intensity = value * 50
