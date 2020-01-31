@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from pythonosc import dispatcher
 from pythonosc import osc_server
+from pytorch_pretrained_biggan import BigGAN, one_hot_from_names, truncated_noise_sample
 from scipy.interpolate import interp1d
 
 from berlin.pg_gan.model import Generator
@@ -17,13 +18,17 @@ from berlin.pg_gan.model import Generator
 CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
 
 
-def resample(x, n, kind='cubic'):
-    f = interp1d(np.linspace(0, 1, x.size), x, kind)
+def resample(x, n, kind='cubic', axis=0):
+    f = interp1d(np.linspace(0, 1, x.shape[axis]), x, kind, axis=axis)
     return f(np.linspace(0, 1, n))
 
 
 # TODO: Rename all the things!
 # TODO: We will need multi-input processor nodes.
+# TODO: Animate latent space exploration in BigGAN
+# TODO: Create 2 OSCClients
+#       One will relay unhandled messages to Onur
+#       Other will send initialization values to TouchOSC
 class BaseNode:
     def __init__(self):
         self.processor = mp.Process(target=self.process)
@@ -41,13 +46,13 @@ class BaseNode:
     def process(self):
         self.setup()
         while not self.exit.is_set():
-            self._run()
+            self.run()
         self.teardown()
 
     def setup(self):
         pass
 
-    def _run(self):
+    def run(self):
         raise NotImplemented
 
     def teardown(self):
@@ -58,11 +63,14 @@ class InputNode(BaseNode):
     def __init__(self, outgoing: mp.Queue):
         super().__init__()
         self._outgoing = outgoing
-        self.outgoing = None
 
-    def _run(self):
-        self.run()
-        self._outgoing.put(self.outgoing)
+    @property
+    def outgoing(self):
+        raise PermissionError('Not allowed to read from output!')
+
+    @outgoing.setter
+    def outgoing(self, value):
+        self._outgoing.put(value)
 
     def run(self):
         raise NotImplemented
@@ -72,14 +80,18 @@ class OutputNode(BaseNode):
     def __init__(self, incoming: mp.Queue):
         super().__init__()
         self._incoming = incoming
-        self.incoming = None
 
-    def _run(self):
+    @property
+    def incoming(self):
         try:
-            self.incoming = self._incoming.get(timeout=1)
+            value = self._incoming.get(timeout=1)
         except queue.Empty:
-            return
-        self.run()
+            value = None
+        return value
+
+    @incoming.setter
+    def incoming(self, value):
+        raise PermissionError('Not allowed to write to input!')
 
     def run(self):
         raise NotImplemented
@@ -89,17 +101,27 @@ class ProcessorNode(BaseNode):
     def __init__(self, incoming: mp.Queue, outgoing: mp.Queue):
         super().__init__()
         self._incoming = incoming
-        self.incoming = None
         self._outgoing = outgoing
-        self.outgoing = None
 
-    def _run(self):
+    @property
+    def incoming(self):
         try:
-            self.incoming = self._incoming.get(timeout=1)
+            value = self._incoming.get(timeout=1)
         except queue.Empty:
-            return
-        self.run()
-        self._outgoing.put(self.outgoing)
+            value = None
+        return value
+
+    @incoming.setter
+    def incoming(self, value):
+        raise PermissionError('Not allowed to write to input!')
+
+    @property
+    def outgoing(self):
+        raise PermissionError('Not allowed to read from output!')
+
+    @outgoing.setter
+    def outgoing(self, value):
+        self._outgoing.put(value)
 
     def run(self):
         raise NotImplemented
@@ -112,6 +134,7 @@ class App:
         self.manager = mp.Manager()
         self.osc_params = self.manager.Namespace()
         self.osc_params.rgb_intensity = 0.0
+        self.osc_params.scale = 1.0
         self.osc_server = OSCServer(self.osc_params, self.exit)
 
         self.buffer = mp.Queue(maxsize=1)
@@ -121,7 +144,7 @@ class App:
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
-        self.image_generator = ImageGenerator(incoming=self.cqt, outgoing=self.image)
+        self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image, osc_params=self.osc_params)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, osc_params=self.osc_params)
         self.image_display = ImageDisplay(incoming=self.imfx, exit_event=self.exit)
 
@@ -178,6 +201,8 @@ class JACKInput:
 class AudioProcessor(ProcessorNode):
     def run(self):
         buffer = self.incoming
+        if buffer is None:
+            return
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
@@ -195,6 +220,8 @@ class ImageGenerator(ProcessorNode):
 
     def run(self):
         stft = self.incoming
+        if stft is None:
+            return
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
         features = torch.from_numpy(features)
@@ -215,6 +242,63 @@ class ImageGenerator(ProcessorNode):
         self.outgoing = image
 
 
+class AlternativeGenerator(ProcessorNode):
+    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, osc_params: managers.Namespace):
+        super().__init__(incoming, outgoing)
+        self.osc_params = osc_params
+
+    def setup(self):
+        self.generator = BigGAN.from_pretrained('biggan-deep-512')
+
+        labels = ['analog clock', 'disk brake', 'loudspeaker']
+        class_vector = one_hot_from_names(labels)
+        class_vector = resample(class_vector, (len(labels) - 1) * 64, kind='linear', axis=0).astype('float32')
+        class_vector = np.expand_dims(class_vector, axis=1)
+
+        noise_vector = truncated_noise_sample(truncation=0.4, batch_size=256)
+        noise_vector = resample(noise_vector, 1024, axis=0).astype('float32')
+        noise_vector = np.expand_dims(noise_vector, axis=1)
+        print(noise_vector.shape)
+        print(noise_vector.min(), noise_vector.max())
+        self.idx = 0
+        self.class_vector = torch.from_numpy(class_vector)
+        self.noise_vector = torch.from_numpy(noise_vector)
+
+        if torch.cuda.is_available():
+            self.class_vector = self.class_vector.cuda()
+            self.noise_vector = self.noise_vector.cuda()
+            self.generator.cuda()
+
+    def run(self):
+        stft = self.incoming
+        if stft is None:
+            return
+        try:
+            scale = self.osc_params.scale
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        features = np.zeros((1, 128), dtype='float32')
+        features[0, :] = stft * scale
+
+        features = torch.from_numpy(features)
+        if torch.cuda.is_available():
+            features = features.cuda()
+        features = features + self.noise_vector[self.idx]
+        self.idx = (self.idx + 1) % 1024
+        with torch.no_grad():
+            image = self.generator(features, self.class_vector[self.idx % self.class_vector.shape[0]], 0.4)
+            image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')
+
+            image = (image + 1) / 2
+            image = image * 255
+            image.squeeze_(0)
+            image = image.permute(1, 2, 0)
+
+            image = image.cpu().numpy().astype('uint8')
+
+        self.outgoing = image
+
+
 class ImageFX(ProcessorNode):
     def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, osc_params: managers.Namespace):
         super().__init__(incoming, outgoing)
@@ -222,6 +306,8 @@ class ImageFX(ProcessorNode):
 
     def run(self):
         image = self.incoming
+        if image is None:
+            return
 
         base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
         try:
@@ -249,6 +335,8 @@ class ImageDisplay(OutputNode):
 
     def run(self):
         image = self.incoming
+        if image is None:
+            return
 
         cv2.imshow('frame', image)
         if cv2.waitKey(1) == ord('q'):
@@ -265,6 +353,7 @@ class OSCServer:
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
         self.dispatcher.map('/visuals/patch', self.rgb_intensity)
+        self.dispatcher.map('/visuals/smooth', self.scale)
         self.dispatcher.map('/visuals/run', self.quit)
         self.dispatcher.set_default_handler(self.unknown_message)
 
@@ -277,6 +366,9 @@ class OSCServer:
 
     def rgb_intensity(self, addr, value):
         self.osc_parameters.rgb_intensity = value * 50
+
+    def scale(self, addr, value):
+        self.osc_parameters.scale = value * 99 + 1
 
     def process(self):
         self.server.serve_forever()

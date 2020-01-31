@@ -6,3 +6,5 @@ numpy
 opencv-python
 python-osc
 jack-client
+pytorch_pretrained_biggan
+nltk
