@@ -1,4 +1,4 @@
-import multiprocessing as mp
+# import multiprocessing as mp
 import queue
 import threading
 from multiprocessing import managers
@@ -8,6 +8,8 @@ import jack
 import librosa
 import numpy as np
 import torch
+from torch import multiprocessing as mp
+from torch.nn import functional as F
 from pythonosc import dispatcher
 from pythonosc import osc_server
 from pytorch_pretrained_biggan import BigGAN, one_hot_from_names, truncated_noise_sample
@@ -16,6 +18,9 @@ from scipy.interpolate import interp1d
 from zak_visuals.pg_gan.model import Generator
 
 CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
+# DEVICE = 'cuda:0'
+mp.set_start_method('spawn', force=True)
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 def resample(x, n, kind='cubic', axis=0):
@@ -58,7 +63,7 @@ class BaseNode:
         pass
 
     def run(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def teardown(self):
         pass
@@ -78,7 +83,7 @@ class InputNode(BaseNode):
         self._outgoing.put(value)
 
     def run(self):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class OutputNode(BaseNode):
@@ -99,7 +104,7 @@ class OutputNode(BaseNode):
         raise PermissionError('Not allowed to write to input!')
 
     def run(self):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class ProcessorNode(BaseNode):
@@ -129,7 +134,7 @@ class ProcessorNode(BaseNode):
         self._outgoing.put(value)
 
     def run(self):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class App:
@@ -218,10 +223,7 @@ class AudioProcessor(ProcessorNode):
 
 class ImageGenerator(ProcessorNode):
     def setup(self):
-        if torch.cuda.is_available():
-            self.generator: Generator = torch.load(CHECKPOINT_PATH)
-        else:
-            self.generator: Generator = torch.load(CHECKPOINT_PATH, map_location=torch.device('cpu'))
+        self.generator: Generator = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
 
     def run(self):
         stft = self.incoming
@@ -230,11 +232,10 @@ class ImageGenerator(ProcessorNode):
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
         features = torch.from_numpy(features)
-        if torch.cuda.is_available():
-            features = features.cuda()
+        features = features.to(DEVICE)
         with torch.no_grad():
             image = self.generator(features)
-            image = torch.nn.functional.interpolate(image, (1920, 1080))
+            image = F.interpolate(image, (1920, 1080))
 
             image = (image + 1) / 2
             image = image * 255
@@ -253,26 +254,21 @@ class AlternativeGenerator(ProcessorNode):
         self.osc_params = osc_params
 
     def setup(self):
-        self.generator = BigGAN.from_pretrained('biggan-deep-512')
+        self.generator = BigGAN.from_pretrained('biggan-deep-256')
 
-        labels = ['analog clock', 'disk brake', 'loudspeaker']
+        labels = ['analog clock']
         class_vector = one_hot_from_names(labels)
-        class_vector = resample(class_vector, (len(labels) - 1) * 64, kind='linear', axis=0).astype('float32')
-        class_vector = np.expand_dims(class_vector, axis=1)
+        self.class_vector = torch.from_numpy(class_vector).to(DEVICE)
 
-        noise_vector = truncated_noise_sample(truncation=0.4, batch_size=256)
-        noise_vector = resample(noise_vector, 1024, axis=0).astype('float32')
-        noise_vector = np.expand_dims(noise_vector, axis=1)
-        print(noise_vector.shape)
-        print(noise_vector.min(), noise_vector.max())
         self.idx = 0
-        self.class_vector = torch.from_numpy(class_vector)
-        self.noise_vector = torch.from_numpy(noise_vector)
+        self.num_frames = 16
 
-        if torch.cuda.is_available():
-            self.class_vector = self.class_vector.cuda()
-            self.noise_vector = self.noise_vector.cuda()
-            self.generator.cuda()
+        self.noise_vector_endpoints = torch.randn(1, 128, 2, device=DEVICE)
+        self.noise_vector = F.interpolate(self.noise_vector_endpoints, (self.num_frames,), mode='linear')
+        self.noise_vector.transpose_(2, 0)
+        self.noise_vector.transpose_(1, 2)
+
+        self.generator.to(DEVICE)
 
     def run(self):
         stft = self.incoming
@@ -286,12 +282,17 @@ class AlternativeGenerator(ProcessorNode):
         features[0, :] = stft * scale
 
         features = torch.from_numpy(features)
-        if torch.cuda.is_available():
-            features = features.cuda()
+        features = features.to(DEVICE)
         features = features + self.noise_vector[self.idx]
-        self.idx = (self.idx + 1) % 1024
+        self.idx = (self.idx + 1) % self.num_frames
+        if self.idx == 0:
+            self.noise_vector_endpoints[:, :, 0] = self.noise_vector_endpoints[:, :, 1]
+            self.noise_vector_endpoints[:, :, 1].normal_()
+            self.noise_vector = F.interpolate(self.noise_vector_endpoints, (self.num_frames,), mode='linear')
+            self.noise_vector.transpose_(2, 0)
+            self.noise_vector.transpose_(1, 2)
         with torch.no_grad():
-            image = self.generator(features, self.class_vector[self.idx % self.class_vector.shape[0]], 0.4)
+            image = self.generator(features, self.class_vector, 0.4)
             image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')
 
             image = (image + 1) / 2
