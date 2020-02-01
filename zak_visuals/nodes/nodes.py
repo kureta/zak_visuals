@@ -6,23 +6,27 @@ from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
 from torch import multiprocessing as mp
 from torch.nn import functional as F
 
-from zak_visuals.nodes.base_nodes import ProcessorNode, OutputNode
+from zak_visuals.nodes.base_nodes import ProcessorNode, OutputNode, BaseNode
 from zak_visuals.pg_gan.model import Generator
 
 CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
 DEVICE = 'cuda:0'
 
 
-class AudioProcessor(ProcessorNode):
+class AudioProcessor(BaseNode):
+    def __init__(self, incoming: mp.Array, outgoing: mp.Queue):
+        super().__init__()
+        self.incoming = incoming
+        self.outgoing = outgoing
+
     def run(self):
-        buffer = self.incoming
-        if buffer is None:
-            return
+        buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming.get_obj())
+
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
         stft = stft[0:128]
-        self.outgoing = stft
+        self.outgoing.put(stft)
 
 
 class ImageGenerator(ProcessorNode):

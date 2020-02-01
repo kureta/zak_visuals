@@ -6,7 +6,7 @@ from torch import multiprocessing as mp
 
 
 class JACKInput:
-    def __init__(self, outgoing: mp.Queue):
+    def __init__(self, outgoing: mp.Array):
         self.buffer = outgoing
         self.client = jack.Client('Zak')
         self.inport: jack.OwnPort = self.client.inports.register('input_1')
@@ -16,8 +16,7 @@ class JACKInput:
 
     def read_buffer(self, frames: int):
         assert frames == self.client.blocksize
-        buffer = self.inport.get_array().astype('float32')
-        self.buffer.put(buffer)
+        self.buffer[:] = self.inport.get_array()[:]
 
     def process(self):
         sysport: jack.Port = self.client.get_ports(is_audio=True, is_output=True, is_physical=True)[0]
