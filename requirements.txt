@@ -10,3 +10,8 @@ pytorch_pretrained_biggan
 nltk
 matplotlib
 cupy
+PyOpenGL
+PyOpenGl_accelerate
+Cython
+glumpy
+./pycuda-2019.1.2-cp37-cp37m-linux_x86_64.whl

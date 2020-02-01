@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
 from torch import multiprocessing as mp
+from torch.multiprocessing import managers
 from torch.nn import functional as F
 
 from zak_visuals.nodes.base_nodes import ProcessorNode, OutputNode
