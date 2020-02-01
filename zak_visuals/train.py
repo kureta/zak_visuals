@@ -1,3 +1,4 @@
+from PIL import Image
 import argparse
 import copy
 import os
@@ -6,15 +7,17 @@ from time import time
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from torch.optim import Adam
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 import torchvision.transforms.functional as tvf
+import torch.functional as F
 
-from zak_visuals.pg_gan.model import *
+from zak_visuals.pg_gan.model import Generator, Discriminator
 from zak_visuals.pg_gan.progressBar import printProgressBar
-from zak_visuals.pg_gan.utils import *
+from zak_visuals.pg_gan.utils import GradientPenalty, Progress, hypersphere, weights_init, exp_mov_avg
 
 matplotlib.use('agg')
 
@@ -85,8 +88,6 @@ z_save = hypersphere(torch.randn(opt.savenum, opt.nch * 32, 1, 1, device=DEVICE)
 
 P.progress(epoch, 1, total)
 GP.batchSize = P.batchSize
-
-from PIL import Image
 
 
 class Frames(Dataset):
