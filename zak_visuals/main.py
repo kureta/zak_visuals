@@ -1,4 +1,3 @@
-# import multiprocessing as mp
 import queue
 import threading
 from multiprocessing import managers
@@ -8,12 +7,11 @@ import jack
 import librosa
 import numpy as np
 import torch
+from pythonosc import dispatcher, osc_server
+from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
+from scipy.interpolate import interp1d
 from torch import multiprocessing as mp
 from torch.nn import functional as F
-from pythonosc import dispatcher
-from pythonosc import osc_server
-from pytorch_pretrained_biggan import BigGAN, one_hot_from_names, truncated_noise_sample
-from scipy.interpolate import interp1d
 
 from zak_visuals.pg_gan.model import Generator
 
