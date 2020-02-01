@@ -1,5 +1,4 @@
 import threading
-from multiprocessing import managers
 
 import jack
 from pythonosc import dispatcher, osc_server
@@ -38,31 +37,33 @@ class JACKInput:
 
 
 class OSCServer:
-    def __init__(self, osc_params: managers.Namespace, exit_event: mp.Event):
+    def __init__(self, exit_event: mp.Event, rgb_intensity: mp.Value, noise_scale: mp.Value):
         super().__init__()
         self.processor = threading.Thread(target=self.process)
-        self.osc_parameters = osc_params
         self.exit_event = exit_event
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
-        self.dispatcher.map('/visuals/patch', self.rgb_intensity)
-        self.dispatcher.map('/visuals/smooth', self.scale)
+        self.rgb_intensity = rgb_intensity
+        self.noise_scale = noise_scale
+
+        self.dispatcher.map('/visuals/patch', self.on_rgb_intensity)
+        self.dispatcher.map('/visuals/smooth', self.on_noise_scale)
         self.dispatcher.map('/visuals/run', self.quit)
-        self.dispatcher.set_default_handler(self.unknown_message)
+        self.dispatcher.set_default_handler(self.on_unknown_message)
 
     def quit(self, addr, value):
         self.exit_event.set()
 
     @staticmethod
-    def unknown_message(addr, values):
+    def on_unknown_message(addr, values):
         print(f'addr: {addr}', f'values: {values}')
 
-    def rgb_intensity(self, addr, value):
-        self.osc_parameters.rgb_intensity = value * 50
+    def on_rgb_intensity(self, addr, value):
+        self.rgb_intensity.value = value * 50
 
-    def scale(self, addr, value):
-        self.osc_parameters.scale = value * 99 + 1
+    def on_noise_scale(self, addr, value):
+        self.noise_scale.value = value * 99 + 1
 
     def process(self):
         self.server.serve_forever()

@@ -9,11 +9,12 @@ class App:
         mp.set_start_method('spawn', force=True)
         self.exit = mp.Event()
 
-        self.manager = mp.Manager()
-        self.osc_params = self.manager.Namespace()
-        self.osc_params.rgb_intensity = 0.0
-        self.osc_params.scale = 1.0
-        self.osc_server = OSCServer(self.osc_params, self.exit)
+        self.rgb_intensity = mp.Value('f', 1)
+        self.rgb_intensity.value = 0.
+        self.noise_scale = mp.Value('f', 1)
+        self.noise_scale.value = 1.
+
+        self.osc_server = OSCServer(self.exit, rgb_intensity=self.rgb_intensity, noise_scale=self.noise_scale)
 
         self.buffer = mp.Queue(maxsize=1)
         self.cqt = mp.Queue(maxsize=1)
@@ -22,8 +23,8 @@ class App:
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
-        self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image, osc_params=self.osc_params)
-        self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, osc_params=self.osc_params)
+        self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image, noise_scale=self.noise_scale)
+        self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, rgb_intensity=self.rgb_intensity)
         self.image_display = ImageDisplay(incoming=self.imfx, exit_event=self.exit)
 
     def run(self):
