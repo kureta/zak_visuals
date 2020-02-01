@@ -3,7 +3,7 @@ torch
 torchvision
 librosa
 numpy
-opencv-python
+opencv-contrib-python
 python-osc
 jack-client
 pytorch_pretrained_biggan
