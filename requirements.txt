@@ -9,3 +9,4 @@ jack-client
 pytorch_pretrained_biggan
 nltk
 matplotlib
+cupy
