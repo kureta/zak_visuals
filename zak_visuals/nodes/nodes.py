@@ -7,14 +7,14 @@ from torch import multiprocessing as mp
 from torch.nn import functional as F
 
 from berlin.pg_gan.model import Generator
-from zak_visuals.nodes.base_nodes import ProcessorNode, OutputNode, BaseNode
+from zak_visuals.nodes.base_nodes import BaseNode, Edge
 
 CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
 DEVICE = 'cuda:0'
 
 
 class AudioProcessor(BaseNode):
-    def __init__(self, incoming: mp.Array, outgoing: mp.Queue):
+    def __init__(self, incoming: mp.Array, outgoing: Edge):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
@@ -26,17 +26,21 @@ class AudioProcessor(BaseNode):
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
         stft = stft[0:128]
-        self.outgoing.put(stft)
+        self.outgoing.write(stft)
 
 
-class ImageGenerator(ProcessorNode):
-    def setup(self):
+class ImageGenerator(BaseNode):
+    def __init__(self, incoming: Edge, outgoing: Edge):
+        super().__init__()
+        self.incoming = incoming
+        self.outgoing = outgoing
         self.generator: Generator = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
 
     def run(self):
-        stft = self.incoming
+        stft = self.incoming.read()
         if stft is None:
             return
+
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
         features = torch.from_numpy(features)
@@ -53,15 +57,16 @@ class ImageGenerator(ProcessorNode):
 
             image = image.cpu().numpy().astype('uint8')
 
-        self.outgoing = image
+        self.outgoing.write(image)
 
 
-class AlternativeGenerator(ProcessorNode):
-    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, noise_scale: mp.Value):
-        super().__init__(incoming, outgoing)
+class AlternativeGenerator(BaseNode):
+    def __init__(self, incoming: Edge, outgoing: Edge, noise_scale: mp.Value):
+        super().__init__()
+        self.incoming = incoming
+        self.outgoing = outgoing
         self.noise_scale = noise_scale
 
-    def setup(self):
         self.generator = BigGAN.from_pretrained('biggan-deep-256')
 
         labels = ['analog clock']
@@ -79,13 +84,12 @@ class AlternativeGenerator(ProcessorNode):
         self.generator.to(DEVICE)
 
     def run(self):
-        stft = self.incoming
+        stft = self.incoming.read()
         if stft is None:
             return
-        try:
-            scale = self.noise_scale.value
-        except (BrokenPipeError, ConnectionResetError):
-            return
+
+        scale = self.noise_scale.value
+
         features = np.zeros((1, 128), dtype='float32')
         features[0, :] = stft * scale
 
@@ -110,16 +114,18 @@ class AlternativeGenerator(ProcessorNode):
 
             image = image.cpu().numpy().astype('uint8')
 
-        self.outgoing = image
+        self.outgoing.write(image)
 
 
-class ImageFX(ProcessorNode):
-    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, rgb_intensity: mp.Value):
-        super().__init__(incoming, outgoing)
+class ImageFX(BaseNode):
+    def __init__(self, incoming: Edge, outgoing: Edge, rgb_intensity: mp.Value):
+        super().__init__()
+        self.incoming = incoming
+        self.outgoing = outgoing
         self.rgb_intensity = rgb_intensity
 
     def run(self):
-        image = self.incoming
+        image = self.incoming.read()
         if image is None:
             return
 
@@ -130,12 +136,13 @@ class ImageFX(ProcessorNode):
             m = cv2.getAffineTransform(base_points, base_points + shift)
             image[:, :, idx] = cv2.warpAffine(image[:, :, idx], m, (1080, 1920))
 
-        self.outgoing = image
+        self.outgoing.write(image)
 
 
-class ImageDisplay(OutputNode):
-    def __init__(self, incoming, exit_event):
-        super().__init__(incoming=incoming)
+class ImageDisplay(BaseNode):
+    def __init__(self, incoming: Edge, exit_event: mp.Event):
+        super().__init__()
+        self.incoming = incoming
         self.exit_event = exit_event
 
     def setup(self):
@@ -143,7 +150,7 @@ class ImageDisplay(OutputNode):
         cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     def run(self):
-        image = self.incoming
+        image = self.incoming.read()
         if image is None:
             return
 

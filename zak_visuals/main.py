@@ -4,6 +4,7 @@ from torch import multiprocessing as mp
 
 from zak_visuals.nodes import AudioProcessor, AlternativeGenerator, ImageFX, ImageDisplay
 from zak_visuals.nodes import JACKInput, OSCServer
+from zak_visuals.nodes.base_nodes import Edge
 
 
 class App:
@@ -19,12 +20,13 @@ class App:
         self.osc_server = OSCServer(self.exit, rgb_intensity=self.rgb_intensity, noise_scale=self.noise_scale)
 
         self.buffer = mp.Array(ctypes.c_float, 2048)
-        self.cqt = mp.Queue(maxsize=1)
-        self.image = mp.Queue(maxsize=1)
-        self.imfx = mp.Queue(maxsize=1)
+        self.cqt = Edge()
+        self.image = Edge()
+        self.imfx = Edge()
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
+        # self.image_generator = ImageGenerator(incoming=self.cqt, outgoing=self.image)
         self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image,
                                                     noise_scale=self.noise_scale)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, rgb_intensity=self.rgb_intensity)
