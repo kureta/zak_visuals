@@ -57,8 +57,8 @@ class App:
         self.image_display.stop()
         self.osc_server.stop()
 
-    def on_keyboard_interrupt(self, signal, frame):
-        print("KeyboardInterrupt (ID: {}) has been caught. Cleaning up...".format(signal))
+    def on_keyboard_interrupt(self, sig, _):
+        print("KeyboardInterrupt (ID: {}) has been caught. Cleaning up...".format(sig))
         self.exit_handler()
         exit(0)
 
