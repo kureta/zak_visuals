@@ -4,18 +4,18 @@ from torch import multiprocessing as mp
 
 
 class Edge:
-    def __init__(self):
-        self.q = mp.Queue(maxsize=1)
+    def __init__(self, maxsize=1):
+        self.q = mp.Queue(maxsize=maxsize)
 
     def write(self, value):
         try:
-            self.q.put(value, timeout=1)
+            self.q.put(value, timeout=5)
         except queue.Full:
             return
 
     def read(self):
         try:
-            value = self.q.get(timeout=1)
+            value = self.q.get(timeout=5)
         except queue.Empty:
             value = None
         return value

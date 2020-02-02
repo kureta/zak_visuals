@@ -60,32 +60,53 @@ class ImageGenerator(BaseNode):
         self.outgoing.write(image)
 
 
-class AlternativeGenerator(BaseNode):
-    def __init__(self, incoming: Edge, outgoing: Edge, noise_scale: mp.Value):
+class NoiseGenerator(BaseNode):
+    def __init__(self, outgoing: Edge):
         super().__init__()
-        self.incoming = incoming
+        self.outgoing = outgoing
+
+        self.num_frames = 32
+
+    def setup(self):
+        self.noise_vector_endpoints = torch.randn(1, 128, 2, device=DEVICE) * 0.7
+        self.noise_vector = F.interpolate(self.noise_vector_endpoints,
+                                          (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+
+    def run(self):
+        self.noise_vector_endpoints[:, :, 0] = self.noise_vector_endpoints[:, :, 1]
+        self.noise_vector_endpoints[:, :, 1].normal_(std=0.7)
+        self.noise_vector = F.interpolate(self.noise_vector_endpoints,
+                                          (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+
+        self.outgoing.write(self.noise_vector)
+
+
+class AlternativeGenerator(BaseNode):
+    def __init__(self, stft_in: Edge, noise_in: Edge, outgoing: Edge, noise_scale: mp.Value):
+        super().__init__()
+        self.stft_in = stft_in
+        self.noise_in = noise_in
         self.outgoing = outgoing
         self.noise_scale = noise_scale
 
         self.generator = BigGAN.from_pretrained('biggan-deep-256')
+        self.generator.to(DEVICE)
 
         labels = ['analog clock']
         class_vector = one_hot_from_names(labels)
         self.class_vector = torch.from_numpy(class_vector).to(DEVICE)
 
-        self.idx = 0
-        self.num_frames = 16
+        self.frame = 0
 
-        self.noise_vector_endpoints = torch.randn(1, 128, 2, device=DEVICE)
-        self.noise_vector = F.interpolate(self.noise_vector_endpoints, (self.num_frames,), mode='linear')
-        self.noise_vector.transpose_(2, 0)
-        self.noise_vector.transpose_(1, 2)
-
-        self.generator.to(DEVICE)
+        self.current_motion = None
 
     def run(self):
-        stft = self.incoming.read()
+        stft = self.stft_in.read()
         if stft is None:
+            return
+        if self.frame == 0:
+            self.current_motion = self.noise_in.read()
+        if self.current_motion is None:
             return
 
         scale = self.noise_scale.value
@@ -95,14 +116,9 @@ class AlternativeGenerator(BaseNode):
 
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
-        features = features + self.noise_vector[self.idx]
-        self.idx = (self.idx + 1) % self.num_frames
-        if self.idx == 0:
-            self.noise_vector_endpoints[:, :, 0] = self.noise_vector_endpoints[:, :, 1]
-            self.noise_vector_endpoints[:, :, 1].normal_()
-            self.noise_vector = F.interpolate(self.noise_vector_endpoints, (self.num_frames,), mode='linear')
-            self.noise_vector.transpose_(2, 0)
-            self.noise_vector.transpose_(1, 2)
+        features = features + self.current_motion[self.frame]
+        self.frame = (self.frame + 1) % self.current_motion.shape[0]
+
         with torch.no_grad():
             image = self.generator(features, self.class_vector, 0.4)
             image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')

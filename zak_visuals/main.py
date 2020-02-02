@@ -5,6 +5,7 @@ from torch import multiprocessing as mp
 from zak_visuals.nodes import AudioProcessor, AlternativeGenerator, ImageFX, ImageDisplay
 from zak_visuals.nodes import JACKInput, OSCServer
 from zak_visuals.nodes.base_nodes import Edge
+from zak_visuals.nodes.nodes import NoiseGenerator
 
 
 class App:
@@ -21,13 +22,15 @@ class App:
 
         self.buffer = mp.Array(ctypes.c_float, 2048)
         self.cqt = Edge()
+        self.noise = Edge()
         self.image = Edge()
         self.imfx = Edge()
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
         # self.image_generator = ImageGenerator(incoming=self.cqt, outgoing=self.image)
-        self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image,
+        self.noise_generator = NoiseGenerator(self.noise)
+        self.image_generator = AlternativeGenerator(stft_in=self.cqt, noise_in=self.noise, outgoing=self.image,
                                                     noise_scale=self.noise_scale)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, rgb_intensity=self.rgb_intensity)
         self.image_display = ImageDisplay(incoming=self.imfx, exit_event=self.exit)
@@ -36,6 +39,7 @@ class App:
         self.osc_server.start()
         self.jack_input.start()
         self.audio_processor.start()
+        self.noise_generator.start()
         self.image_generator.start()
         self.image_fx.start()
         self.image_display.start()
@@ -45,6 +49,7 @@ class App:
     def exit_handler(self):
         self.jack_input.stop()
         self.audio_processor.stop()
+        self.noise_generator.stop()
         self.image_generator.stop()
         self.image_fx.stop()
         self.image_display.stop()
