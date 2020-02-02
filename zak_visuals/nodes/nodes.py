@@ -1,9 +1,10 @@
+import cupy as cp
+import cupyx.scipy.ndimage as cpi
 import cv2
 import librosa
 import numpy as np
-import cupy as cp
-import cupyx.scipy.ndimage as cpi
 import torch
+from glumpy import app, gloo, gl, data
 from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
 from torch import multiprocessing as mp
 from torch.nn import functional as F
@@ -164,11 +165,11 @@ class ImageFX(BaseNode):
             shift = np.random.randn(2).astype('float32') * rgb
             cimage[:, :, idx] = cpi.shift(cimage[:, :, idx], shift)
 
-        cimage = (cimage + 1) / 2
-        cimage = cimage * 255
-        nimage = cp.asnumpy(cimage).astype('uint8')
+        # cimage = (cimage + 1) / 2
+        # cimage = cimage * 255
+        # nimage = cp.asnumpy(cimage).astype('uint8')
 
-        self.outgoing.write(nimage)
+        self.outgoing.write(cimage)
 
     def cleanup(self):
         self.outgoing.cleanup_output()
@@ -192,6 +193,60 @@ class ImageDisplay(BaseNode):
 
         cv2.imshow('frame', image)
         if cv2.waitKey(1) == ord('q'):
+            self.exit_event.set()
+
+    def cleanup(self):
+        self.incoming.cleanup_input()
+
+
+class InteropDisplay(BaseNode):
+    vertex = """
+        uniform float scale;
+        attribute vec2 position;
+        attribute vec2 texcoord;
+        varying vec2 v_texcoord;
+        void main()
+        {
+            gl_Position = vec4(position, 0.0, 1.0);
+            v_texcoord = texcoord;
+        }
+    """
+    fragment = """
+        uniform sampler2D texture;
+        varying vec2 v_texcoord;
+        void main()
+        {
+            gl_FragColor = texture2D(texture, v_texcoord);
+        }
+    """
+
+    def __init__(self, incoming: Edge, exit_event: mp.Event):
+        super().__init__()
+        self.incoming = incoming
+        self.exit_event = exit_event
+
+    def setup(self):
+        self.quad = gloo.Program(InteropDisplay.vertex, InteropDisplay.fragment, count=4)
+        self.quad['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
+        self.quad['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
+        self.quad['texture'] = data.get("lena.png")
+
+        self.window = app.Window(width=1280, height=720, fullscreen=False, decoration=True)
+        self.window.event(self.on_draw)
+
+        self.backend = app.__backend__
+        self.clock = app.__init__(backend=self.backend)
+
+    def on_draw(self, dt):
+        self.window.clear()
+        self.quad.draw(gl.GL_TRIANGLE_STRIP)
+
+    def run(self):
+        image = self.incoming.read()
+        if image is None:
+            return
+
+        if not self.backend.process(self.clock.tick()):
             self.exit_event.set()
 
     def cleanup(self):

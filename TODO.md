@@ -11,3 +11,4 @@
 - [ ] Create 2 OSCClients
       One will relay unhandled messages to Onur
       Other will send initialization values to TouchOSC
+- [] Use random convolutions effect
