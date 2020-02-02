@@ -2,7 +2,7 @@ import ctypes
 
 from torch import multiprocessing as mp
 
-from zak_visuals.nodes import AudioProcessor, AlternativeGenerator, ImageFX, ImageDisplay
+from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, ImageDisplay
 from zak_visuals.nodes import JACKInput, OSCServer
 from zak_visuals.nodes.base_nodes import Edge
 from zak_visuals.nodes.nodes import NoiseGenerator
@@ -28,10 +28,10 @@ class App:
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
-        # self.image_generator = ImageGenerator(incoming=self.cqt, outgoing=self.image)
+        # self.image_generator = PGGAN(incoming=self.cqt, outgoing=self.image)
         self.noise_generator = NoiseGenerator(self.noise)
-        self.image_generator = AlternativeGenerator(stft_in=self.cqt, noise_in=self.noise, outgoing=self.image,
-                                                    noise_scale=self.noise_scale)
+        self.image_generator = BIGGAN(stft_in=self.cqt, noise_in=self.noise, outgoing=self.image,
+                                      noise_scale=self.noise_scale)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, rgb_intensity=self.rgb_intensity)
         self.image_display = ImageDisplay(incoming=self.imfx, exit_event=self.exit)
 

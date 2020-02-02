@@ -1,6 +1,8 @@
 import cv2
 import librosa
 import numpy as np
+import cupy as cp
+import cupyx.scipy.ndimage as cpi
 import torch
 from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
 from torch import multiprocessing as mp
@@ -32,7 +34,7 @@ class AudioProcessor(BaseNode):
         self.outgoing.cleanup_output()
 
 
-class ImageGenerator(BaseNode):
+class PGGAN(BaseNode):
     def __init__(self, incoming: Edge, outgoing: Edge):
         super().__init__()
         self.incoming = incoming
@@ -91,7 +93,7 @@ class NoiseGenerator(BaseNode):
         self.outgoing.cleanup_output()
 
 
-class AlternativeGenerator(BaseNode):
+class BIGGAN(BaseNode):
     def __init__(self, stft_in: Edge, noise_in: Edge, outgoing: Edge, noise_scale: mp.Value):
         super().__init__()
         self.stft_in = stft_in
@@ -99,7 +101,7 @@ class AlternativeGenerator(BaseNode):
         self.outgoing = outgoing
         self.noise_scale = noise_scale
 
-        self.generator = BigGAN.from_pretrained('biggan-deep-256')
+        self.generator = BigGAN.from_pretrained('biggan-deep-512')
         self.generator.to(DEVICE)
 
         labels = ['analog clock']
@@ -133,12 +135,8 @@ class AlternativeGenerator(BaseNode):
             image = self.generator(features, self.class_vector, 0.4)
             image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')
 
-            image = (image + 1) / 2
-            image = image * 255
             image.squeeze_(0)
             image = image.permute(1, 2, 0)
-
-            image = image.cpu().numpy().astype('uint8')
 
         self.outgoing.write(image)
 
@@ -156,18 +154,21 @@ class ImageFX(BaseNode):
         self.rgb_intensity = rgb_intensity
 
     def run(self):
-        image = self.incoming.read()
+        image: torch.Tensor = self.incoming.read()
         if image is None:
             return
-
-        base_points = np.float32([[420, 1080], [420, 0], [1500, 0]])
         rgb = self.rgb_intensity.value
-        for idx in range(3):
-            shift = np.random.normal(0, rgb, (3, 2)).astype('float32')
-            m = cv2.getAffineTransform(base_points, base_points + shift)
-            image[:, :, idx] = cv2.warpAffine(image[:, :, idx], m, (1080, 1920))
 
-        self.outgoing.write(image)
+        cimage = cp.asarray(image)
+        for idx in range(3):
+            shift = np.random.randn(2).astype('float32') * rgb
+            cimage[:, :, idx] = cpi.shift(cimage[:, :, idx], shift)
+
+        cimage = (cimage + 1) / 2
+        cimage = cimage * 255
+        nimage = cp.asnumpy(cimage).astype('uint8')
+
+        self.outgoing.write(nimage)
 
     def cleanup(self):
         self.outgoing.cleanup_output()

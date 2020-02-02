@@ -1,7 +1,7 @@
 - [ ] Rename all the things!
 - [x] We will need multi-input processor nodes.
 - [x] Interpolated noise (animation parameters) generation into its own process
-- [ ] Do ImageFX in cupy.
+- [x] Do ImageFX in cupy.
 - [ ] Animate latent space exploration in BigGAN
   - [ ] Create a single latent vector.
   - [ ] When an animation is triggered, create a second latent vector,
