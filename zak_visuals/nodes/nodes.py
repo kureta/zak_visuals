@@ -28,6 +28,9 @@ class AudioProcessor(BaseNode):
         stft = stft[0:128]
         self.outgoing.write(stft)
 
+    def cleanup(self):
+        self.outgoing.cleanup()
+
 
 class ImageGenerator(BaseNode):
     def __init__(self, incoming: Edge, outgoing: Edge):
@@ -59,6 +62,9 @@ class ImageGenerator(BaseNode):
 
         self.outgoing.write(image)
 
+    def cleanup(self):
+        self.outgoing.cleanup()
+
 
 class NoiseGenerator(BaseNode):
     def __init__(self, outgoing: Edge):
@@ -79,6 +85,9 @@ class NoiseGenerator(BaseNode):
                                           (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
         self.outgoing.write(self.noise_vector)
+
+    def cleanup(self):
+        self.outgoing.cleanup()
 
 
 class AlternativeGenerator(BaseNode):
@@ -132,6 +141,9 @@ class AlternativeGenerator(BaseNode):
 
         self.outgoing.write(image)
 
+    def cleanup(self):
+        self.outgoing.cleanup()
+
 
 class ImageFX(BaseNode):
     def __init__(self, incoming: Edge, outgoing: Edge, rgb_intensity: mp.Value):
@@ -154,6 +166,9 @@ class ImageFX(BaseNode):
 
         self.outgoing.write(image)
 
+    def cleanup(self):
+        self.outgoing.cleanup()
+
 
 class ImageDisplay(BaseNode):
     def __init__(self, incoming: Edge, exit_event: mp.Event):
@@ -173,3 +188,6 @@ class ImageDisplay(BaseNode):
         cv2.imshow('frame', image)
         if cv2.waitKey(1) == ord('q'):
             self.exit_event.set()
+
+    def cleanup(self):
+        pass

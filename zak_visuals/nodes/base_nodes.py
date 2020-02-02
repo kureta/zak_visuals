@@ -9,16 +9,26 @@ class Edge:
 
     def write(self, value):
         try:
-            self.q.put(value, timeout=5)
+            self.q.put(value)
         except queue.Full:
             return
 
     def read(self):
         try:
-            value = self.q.get(timeout=5)
+            value = self.q.get()
         except queue.Empty:
             value = None
         return value
+
+    def cleanup(self):
+        item = 1
+        while item is not None:
+            try:
+                item = self.q.get(block=False)
+            except queue.Empty:
+                break
+        self.q.close()
+        self.q.join_thread()
 
 
 class BaseNode:
@@ -32,6 +42,7 @@ class BaseNode:
     def stop(self):
         print(f'Exiting {self.__class__.__name__}.')
         self.exit.set()
+        self.cleanup()
         self.processor.join()
         print(f'{self.__class__.__name__} is kill!')
 
@@ -49,3 +60,6 @@ class BaseNode:
 
     def teardown(self):
         pass
+
+    def cleanup(self):
+        raise NotImplementedError
