@@ -1,5 +1,5 @@
-def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=100,
-                     fill='=', empty=' ', tip='>', begin='[', end=']', done="[DONE]", clear=True):
+def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=100,
+                       fill='=', empty=' ', tip='>', begin='[', end=']', done="[DONE]", clear=True):
     """
     Print iterations progress.
     Call in a loop to create terminal progress bar
@@ -19,11 +19,11 @@ def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=
         clear       - Optional : display completion message or leave as is  [str]
     """
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filledLength = int(length * iteration // total)
-    bar = fill * filledLength
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length
     if iteration != total:
         bar = bar + tip
-    bar = bar + empty * (length - filledLength - len(tip))
+    bar = bar + empty * (length - filled_length - len(tip))
     display = '\r{prefix}{begin}{bar}{end} {percent}%{suffix}' \
         .format(prefix=prefix, begin=begin, bar=bar, end=end, percent=percent, suffix=suffix)
     print(display, end=''),  # comma after print() required for python 2

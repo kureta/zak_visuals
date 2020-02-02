@@ -6,8 +6,8 @@ from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
 from torch import multiprocessing as mp
 from torch.nn import functional as F
 
+from berlin.pg_gan.model import Generator
 from zak_visuals.nodes.base_nodes import ProcessorNode, OutputNode, BaseNode
-from zak_visuals.pg_gan.model import Generator
 
 CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
 DEVICE = 'cuda:0'

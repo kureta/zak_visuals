@@ -1,8 +1,11 @@
+from collections import OrderedDict
 from math import ceil
 
+import torch
 import torch.nn.functional as F
+from torch import nn
 
-from zak_visuals.pg_gan.layers import *
+from berlin.pg_gan.layers import conv, PixelNormLayer
 
 
 class Generator(nn.Module):

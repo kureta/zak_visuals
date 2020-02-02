@@ -15,9 +15,9 @@ from torchvision.utils import save_image
 import torchvision.transforms.functional as tvf
 import torch.functional as F
 
-from zak_visuals.pg_gan.model import Generator, Discriminator
-from zak_visuals.pg_gan.progressBar import printProgressBar
-from zak_visuals.pg_gan.utils import GradientPenalty, Progress, hypersphere, weights_init, exp_mov_avg
+from berlin.pg_gan.model import Generator, Discriminator
+from berlin.pg_gan.progressBar import print_progress_bar
+from berlin.pg_gan.utils import GradientPenalty, Progress, hypersphere, weights_init, exp_mov_avg
 
 matplotlib.use('agg')
 
@@ -199,19 +199,19 @@ while True:
         # update Gs with exponential moving average
         exp_mov_avg(Gs, G, alpha=0.999, global_step=global_step)
 
-        printProgressBar(i + 1, total + 1,
-                         length=20,
-                         prefix=f'Epoch {epoch} ',
-                         suffix=f', d_loss: {d_loss.item():.3f}'
+        print_progress_bar(i + 1, total + 1,
+                           length=20,
+                           prefix=f'Epoch {epoch} ',
+                           suffix=f', d_loss: {d_loss.item():.3f}'
                                 f', d_loss_W: {d_loss_W.item():.3f}'
                                 f', GP: {gradient_penalty.item():.3f}'
                                 f', progress: {P.p:.2f}')
 
-    printProgressBar(total, total,
-                     done=f'Epoch [{epoch:>3d}]  d_loss: {np.mean(lossEpochD):.4f}'
+    print_progress_bar(total, total,
+                       done=f'Epoch [{epoch:>3d}]  d_loss: {np.mean(lossEpochD):.4f}'
                           f', d_loss_W: {np.mean(lossEpochD_W):.3f}'
                           f', progress: {P.p:.2f}, time: {time() - t0:.2f}s'
-                     )
+                       )
 
     d_losses = np.append(d_losses, lossEpochD)
     d_losses_W = np.append(d_losses_W, lossEpochD_W)

@@ -1,3 +1,5 @@
+import ctypes
+
 from torch import multiprocessing as mp
 
 from zak_visuals.nodes import AudioProcessor, AlternativeGenerator, ImageFX, ImageDisplay
@@ -16,16 +18,15 @@ class App:
 
         self.osc_server = OSCServer(self.exit, rgb_intensity=self.rgb_intensity, noise_scale=self.noise_scale)
 
-        # self.buffer = mp.Queue(maxsize=1)
-        # rgb = np.ndarray((1,), dtype='float32', buffer=rgb.get_obj())
-        self.buffer = mp.Array('f', 2048)
+        self.buffer = mp.Array(ctypes.c_float, 2048)
         self.cqt = mp.Queue(maxsize=1)
         self.image = mp.Queue(maxsize=1)
         self.imfx = mp.Queue(maxsize=1)
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
-        self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image, noise_scale=self.noise_scale)
+        self.image_generator = AlternativeGenerator(incoming=self.cqt, outgoing=self.image,
+                                                    noise_scale=self.noise_scale)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, rgb_intensity=self.rgb_intensity)
         self.image_display = ImageDisplay(incoming=self.imfx, exit_event=self.exit)
 
