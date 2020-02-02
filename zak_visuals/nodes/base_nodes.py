@@ -20,7 +20,7 @@ class Edge:
             value = None
         return value
 
-    def cleanup_output(self):
+    def flush(self):
         item = 1
         while item is not None:
             try:
@@ -28,9 +28,12 @@ class Edge:
             except queue.Empty:
                 break
 
+    def cleanup_output(self):
+        self.flush()
+
     def cleanup_input(self):
         self.q.put(None)
-        self.cleanup_output()
+        self.flush()
         self.q.close()
         self.q.join_thread()
 
