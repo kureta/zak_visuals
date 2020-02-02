@@ -29,7 +29,7 @@ class AudioProcessor(BaseNode):
         self.outgoing.write(stft)
 
     def cleanup(self):
-        self.outgoing.cleanup()
+        self.outgoing.cleanup_output()
 
 
 class ImageGenerator(BaseNode):
@@ -63,7 +63,8 @@ class ImageGenerator(BaseNode):
         self.outgoing.write(image)
 
     def cleanup(self):
-        self.outgoing.cleanup()
+        self.outgoing.cleanup_output()
+        self.incoming.cleanup_input()
 
 
 class NoiseGenerator(BaseNode):
@@ -87,7 +88,7 @@ class NoiseGenerator(BaseNode):
         self.outgoing.write(self.noise_vector)
 
     def cleanup(self):
-        self.outgoing.cleanup()
+        self.outgoing.cleanup_output()
 
 
 class AlternativeGenerator(BaseNode):
@@ -142,7 +143,9 @@ class AlternativeGenerator(BaseNode):
         self.outgoing.write(image)
 
     def cleanup(self):
-        self.outgoing.cleanup()
+        self.outgoing.cleanup_output()
+        self.stft_in.cleanup_input()
+        self.noise_in.cleanup_input()
 
 
 class ImageFX(BaseNode):
@@ -167,7 +170,8 @@ class ImageFX(BaseNode):
         self.outgoing.write(image)
 
     def cleanup(self):
-        self.outgoing.cleanup()
+        self.outgoing.cleanup_output()
+        self.incoming.cleanup_input()
 
 
 class ImageDisplay(BaseNode):
@@ -190,4 +194,4 @@ class ImageDisplay(BaseNode):
             self.exit_event.set()
 
     def cleanup(self):
-        pass
+        self.incoming.cleanup_input()

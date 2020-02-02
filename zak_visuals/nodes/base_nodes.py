@@ -20,13 +20,17 @@ class Edge:
             value = None
         return value
 
-    def cleanup(self):
+    def cleanup_output(self):
         item = 1
         while item is not None:
             try:
                 item = self.q.get(block=False)
             except queue.Empty:
                 break
+
+    def cleanup_input(self):
+        self.q.put(None)
+        self.cleanup_output()
         self.q.close()
         self.q.join_thread()
 
