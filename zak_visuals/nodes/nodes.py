@@ -1,10 +1,15 @@
+from contextlib import contextmanager
+
 import cupy as cp
 import cupyx.scipy.ndimage as cpi
 import cv2
 import librosa
 import numpy as np
+import pycuda
+import pycuda.driver
 import torch
-from glumpy import app, gloo, gl, data
+from glumpy import app, gloo, gl
+from pycuda.gl import graphics_map_flags
 from pytorch_pretrained_biggan import BigGAN, one_hot_from_names
 from torch import multiprocessing as mp
 from torch.nn import functional as F
@@ -199,26 +204,41 @@ class ImageDisplay(BaseNode):
         self.incoming.cleanup_input()
 
 
+@contextmanager
+def cuda_activate(img):
+    """Context manager simplifying use of pycuda.gl.RegisteredImage"""
+    mapping = img.map()
+    yield mapping.array(0, 0)
+    mapping.unmap()
+
+
+def create_shared_texture(map_flags=graphics_map_flags.WRITE_DISCARD, dtype=np.uint8):
+    tex = np.zeros((1920, 1080, 4), dtype).view(gloo.Texture2D)
+    tex.activate()  # force gloo to create on GPU
+    tex.deactivate()
+    cuda_buffer = pycuda.gl.RegisteredImage(
+        int(tex.handle), tex.target, map_flags)
+    return tex, cuda_buffer
+
+
 class InteropDisplay(BaseNode):
     vertex = """
-        uniform float scale;
-        attribute vec2 position;
-        attribute vec2 texcoord;
-        varying vec2 v_texcoord;
-        void main()
-        {
-            gl_Position = vec4(position, 0.0, 1.0);
-            v_texcoord = texcoord;
-        }
-    """
+    uniform float scale;
+    attribute vec2 position;
+    attribute vec2 texcoord;
+    varying vec2 v_texcoord;
+    void main()
+    {
+        v_texcoord = texcoord;
+        gl_Position = vec4(scale*position, 0.0, 1.0);
+    } """
     fragment = """
-        uniform sampler2D texture;
-        varying vec2 v_texcoord;
-        void main()
-        {
-            gl_FragColor = texture2D(texture, v_texcoord);
-        }
-    """
+    uniform sampler2D tex;
+    varying vec2 v_texcoord;
+    void main()
+    {
+        gl_FragColor = texture2D(tex, v_texcoord);
+    } """
 
     def __init__(self, incoming: Edge, exit_event: mp.Event):
         super().__init__()
@@ -226,26 +246,50 @@ class InteropDisplay(BaseNode):
         self.exit_event = exit_event
 
     def setup(self):
-        self.quad = gloo.Program(InteropDisplay.vertex, InteropDisplay.fragment, count=4)
-        self.quad['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
-        self.quad['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
-        self.quad['texture'] = data.get("lena.png")
-
-        self.window = app.Window(width=1280, height=720, fullscreen=False, decoration=True)
+        self.window = app.Window(width=1920, height=1080, fullscreen=False, decoration=True)
         self.window.event(self.on_draw)
+
+        import pycuda.gl.autoinit
+        import pycuda.gl
+
+        self.state = cp.ones((1920, 1080, 4))
+        tex, self.cuda_buffer = create_shared_texture()
+
+        self.screen = gloo.Program(InteropDisplay.vertex, InteropDisplay.fragment, count=4)
+        self.screen['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
+        self.screen['texcoord'] = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        self.screen['scale'] = 1.0
+        self.screen['tex'] = tex
 
         self.backend = app.__backend__
         self.clock = app.__init__(backend=self.backend)
 
     def on_draw(self, dt):
-        self.window.clear()
-        self.quad.draw(gl.GL_TRIANGLE_STRIP)
+        self.window.set_title(f'{self.window.fps:.2f}')
 
-    def run(self):
-        image = self.incoming.read()
-        if image is None:
+        tex = self.screen['tex']
+        self.state[:, :, :3] = self.incoming.read()
+        if self.state is None:
             return
 
+        tensor = (self.state + 1.) / 2 * 255
+        tensor = cp.clip(tensor, 0, 255).astype(cp.uint8)
+        tensor: cp.ndarray = cp.ascontiguousarray(tensor)
+
+        assert tex.nbytes == tensor.nbytes
+        with cuda_activate(self.cuda_buffer) as ary:
+            cpy = pycuda.driver.Memcpy2D()
+            cpy.set_src_device(tensor.data.ptr)
+            cpy.set_dst_array(ary)
+            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = tex.nbytes // 1080
+            cpy.height = 1080
+            cpy(aligned=False)
+            torch.cuda.synchronize()
+
+        self.window.clear()
+        self.screen.draw(gl.GL_TRIANGLE_STRIP)
+
+    def run(self):
         if not self.backend.process(self.clock.tick()):
             self.exit_event.set()
 
