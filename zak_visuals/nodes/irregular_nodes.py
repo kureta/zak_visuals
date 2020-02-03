@@ -46,23 +46,23 @@ class OSCServer:
         self.rgb_intensity = rgb_intensity
         self.noise_scale = noise_scale
 
-        self.dispatcher.map('/visuals/patch', self.on_rgb_intensity)
-        self.dispatcher.map('/visuals/smooth', self.on_noise_scale)
-        self.dispatcher.map('/visuals/run', self.quit)
+        self.dispatcher.map('/2/rgb', self.on_rgb_intensity)
+        self.dispatcher.map('/2/noise', self.on_noise_scale)
+        self.dispatcher.map('/2/quit', self.quit)
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
     def quit(self, addr, value):
         self.exit_event.set()
 
     @staticmethod
-    def on_unknown_message(addr, values):
+    def on_unknown_message(addr, *values):
         print(f'addr: {addr}', f'values: {values}')
 
     def on_rgb_intensity(self, addr, value):
-        self.rgb_intensity.value = value * 50
+        self.rgb_intensity.value = value
 
     def on_noise_scale(self, addr, value):
-        self.noise_scale.value = value * 999 + 1
+        self.noise_scale.value = value
 
     def process(self):
         self.server.serve_forever()
