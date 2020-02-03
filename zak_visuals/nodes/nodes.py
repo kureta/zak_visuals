@@ -101,7 +101,7 @@ class BIGGAN(BaseNode):
         self.outgoing = outgoing
         self.noise_scale = noise_scale
 
-        self.generator = BigGAN.from_pretrained('biggan-deep-512')
+        self.generator = BigGAN.from_pretrained('biggan-deep-256')
         self.generator.to(DEVICE)
 
         labels = ['analog clock']

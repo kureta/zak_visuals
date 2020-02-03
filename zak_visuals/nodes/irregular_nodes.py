@@ -62,7 +62,7 @@ class OSCServer:
         self.rgb_intensity.value = value * 50
 
     def on_noise_scale(self, addr, value):
-        self.noise_scale.value = value * 99 + 1
+        self.noise_scale.value = value * 999 + 1
 
     def process(self):
         self.server.serve_forever()
