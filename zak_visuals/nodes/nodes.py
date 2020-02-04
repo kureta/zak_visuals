@@ -80,7 +80,7 @@ architectural = {
 
 
 class AudioProcessor(BaseNode):
-    def __init__(self, incoming: mp.Array, outgoing: mp.Queue):
+    def __init__(self, incoming: mp.Array, outgoing: mp.Array):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
@@ -92,7 +92,7 @@ class AudioProcessor(BaseNode):
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
         stft = stft[0:128]
-        self.outgoing.put(stft)
+        self.outgoing[:] = stft[:]
 
 
 class PGGAN(BaseNode):
@@ -142,7 +142,7 @@ class NoiseGenerator(BaseNode):
                                           (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
     def task(self):
-        if self.params['animate_noise'] and self.frame == 32:
+        if self.params['animate_noise'].value and self.frame == 32:
             self.restart()
         if self.frame >= len(self.noise_vector):
             self.outgoing.put(self.noise_vector[-1])
@@ -175,7 +175,7 @@ class LabelGenerator(BaseNode):
 
 
 class BIGGAN(BaseNode):
-    def __init__(self, stft_in: mp.Queue, noise_in: mp.Queue, label_in: mp.Queue, outgoing: mp.Queue, params: dict):
+    def __init__(self, stft_in: mp.Array, noise_in: mp.Queue, label_in: mp.Queue, outgoing: mp.Queue, params: dict):
         super().__init__()
         self.stft_in = stft_in
         self.noise_in = noise_in
@@ -187,9 +187,9 @@ class BIGGAN(BaseNode):
         self.generator.to(DEVICE)
 
     def task(self):
-        stft = self.stft_in.get()
         noise = self.noise_in.get()
         label = self.label_in.get()
+        stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in.get_obj())
 
         scale = self.params['stft_scale'].value * 250
 

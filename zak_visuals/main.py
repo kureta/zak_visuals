@@ -24,18 +24,18 @@ class App:
         self.osc_server = OSCServer(self.exit, params=params)
 
         self.buffer = mp.Array(ctypes.c_float, 2048)
-        self.cqt = mp.Queue(maxsize=1)
+        self.stft = mp.Array(ctypes.c_float, 128)
         self.noise = mp.Queue(maxsize=1)
         self.label = mp.Queue(maxsize=1)
         self.image = mp.Queue(maxsize=1)
         self.imfx = mp.Queue(maxsize=1)
 
         self.jack_input = JACKInput(outgoing=self.buffer)
-        self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
+        self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft)
         # self.image_generator = PGGAN(incoming=self.cqt, outgoing=self.image)
         self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params)
         self.label_generator = LabelGenerator(outgoing=self.label)
-        self.image_generator = BIGGAN(stft_in=self.cqt, noise_in=self.noise, label_in=self.label,
+        self.image_generator = BIGGAN(stft_in=self.stft, noise_in=self.noise, label_in=self.label,
                                       outgoing=self.image, params=params)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, params=params)
         self.image_display = InteropDisplay(incoming=self.imfx, exit_app=self.exit)
