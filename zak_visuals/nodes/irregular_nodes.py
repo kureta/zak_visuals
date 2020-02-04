@@ -53,13 +53,13 @@ class OSCServer(threading.Thread):
         print(f'addr: {addr}', f'values: {values}')
 
     def on_rgb_intensity(self, addr, value):
-        self.params['rgb'] = value
+        self.params['rgb'].value = value
 
     def on_noise_scale(self, addr, value):
-        self.params['stft_scale'] = value
+        self.params['stft_scale'].value = value
 
     def on_animate_noise(self, addr, value):
-        self.params['animate_noise'] = value
+        self.params['animate_noise'].value = value
 
     def run(self):
         self.server.serve_forever()

@@ -8,7 +8,7 @@ from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, InteropDisplay, N
 from zak_visuals.nodes import JACKInput, OSCServer
 
 logger = mp.log_to_stderr()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
 
 class App:
@@ -16,11 +16,11 @@ class App:
         mp.set_start_method('spawn', force=True)
         self.exit = mp.Event()
 
-        self.manager = mp.Manager()
-        params = self.manager.dict()
-        params['rgb'] = 0.
-        params['stft_scale'] = 0.
-        params['animate_noise'] = False
+        rgb = mp.Value(ctypes.c_float)
+        stft_scale = mp.Value(ctypes.c_float)
+        animate_noise = mp.Value(ctypes.c_float)
+        params = {'rgb': rgb, 'stft_scale': stft_scale, 'animate_noise': animate_noise}
+        rgb.value, stft_scale.value, animate_noise.value = 0., 0., 0.,
         self.osc_server = OSCServer(self.exit, params=params)
 
         self.buffer = mp.Array(ctypes.c_float, 2048)

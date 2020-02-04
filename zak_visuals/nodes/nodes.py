@@ -138,7 +138,7 @@ class NoiseGenerator(BaseNode):
         self.frame = 0
         self.noise_vector_endpoints[:, :, 0] = self.noise_vector_endpoints[:, :, 1]
         self.noise_vector_endpoints[:, :, 1].normal_(std=0.7)
-        self.noise_vector = F.interpolate(self.noise_vector_endpoints,
+        self.noise_vector[:] = F.interpolate(self.noise_vector_endpoints,
                                           (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
     def task(self):
@@ -191,7 +191,7 @@ class BIGGAN(BaseNode):
         noise = self.noise_in.get()
         label = self.label_in.get()
 
-        scale = self.params['stft_scale'] * 250
+        scale = self.params['stft_scale'].value * 250
 
         features = np.zeros((1, 128), dtype='float32')
         features[0, :] = stft * scale
@@ -220,7 +220,7 @@ class ImageFX(BaseNode):
     def task(self):
         image: torch.Tensor = self.incoming.get()
 
-        rgb = self.params['rgb'] * 50
+        rgb = self.params['rgb'].value * 50
 
         cimage = cp.asarray(image)
         for idx in range(3):

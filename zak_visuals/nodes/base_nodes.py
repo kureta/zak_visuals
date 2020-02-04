@@ -1,4 +1,21 @@
+import queue
+
 from torch import multiprocessing as mp
+
+
+class Edge:
+    def __init__(self, *args, **kwargs):
+        self.q = mp.Queue(*args, **kwargs)
+
+    def put(self, item, block=False, timeout=0.02):
+        try:
+            self.q.put(item, block=block, timeout=timeout)
+            return True
+        except queue.Full:
+            return False
+
+    def get(self, *args, **kwargs):
+        return self.q.get(*args, **kwargs)
 
 
 class BaseNode(mp.Process):
