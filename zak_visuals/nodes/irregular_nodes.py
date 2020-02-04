@@ -42,6 +42,8 @@ class OSCServer(threading.Thread):
         self.dispatcher.map('/2/rgb', self.on_rgb_intensity)
         self.dispatcher.map('/2/noise', self.on_noise_scale)
         self.dispatcher.map('/2/animate_noise', self.on_animate_noise)
+        self.dispatcher.map('/2/label_group/*', self.on_label_group)
+        self.dispatcher.map('/2/randomize_label', self.on_randomize_label)
         self.dispatcher.map('/2/quit', self.quit)
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
@@ -60,6 +62,14 @@ class OSCServer(threading.Thread):
 
     def on_animate_noise(self, addr, value):
         self.params['animate_noise'].value = value
+
+    def on_label_group(self, addr, value):
+        if value > 0.:
+            idx = addr.split('/')[3]
+            self.params['label_group'].value = int(idx) - 1
+
+    def on_randomize_label(self, addr, value):
+        self.params['randomize_label'].value = value
 
     def run(self):
         self.server.serve_forever()

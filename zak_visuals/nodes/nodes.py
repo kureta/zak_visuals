@@ -19,7 +19,7 @@ vertex = """
     uniform float scale;
     attribute vec2 position;
     attribute vec2 texcoord;
-    varying vec2 v_texcoord;
+    varying vec2 v_texcoord   ;
     void main()
     {
         gl_Position = vec4(position, 0.0, 1.0);
@@ -78,6 +78,8 @@ architectural = {
     'prison': 743,
 }
 
+label_groups = [bugs, instruments, mechanical, architectural]
+
 
 class AudioProcessor(BaseNode):
     def __init__(self, incoming: mp.Array, outgoing: mp.Array):
@@ -127,16 +129,15 @@ class NoiseGenerator(BaseNode):
         self.outgoing = outgoing
         self.params = params
         self.num_frames = 32
-        self.frame = 0
+        self.frame = self.num_frames
         self.first = True
 
     def setup(self):
         self.endpoints_1 = torch.randn(1, 128, 2, device=DEVICE) * 0.7
-        self.animation_1 = F.interpolate(self.endpoints_1,
-                                         (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
-        self.endpoints_2 = torch.randn(1, 128, 2, device=DEVICE) * 0.7
-        self.animation_2 = F.interpolate(self.endpoints_2,
-                                         (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+        self.animation_1 = F.interpolate(self.endpoints_1, (self.num_frames,),
+                                         mode='linear', align_corners=True).permute(2, 0, 1)
+        self.endpoints_2 = self.endpoints_1.clone()
+        self.animation_2 = self.animation_1.clone()
 
     def restart(self):
         self.frame = 0
@@ -144,7 +145,7 @@ class NoiseGenerator(BaseNode):
             self.endpoints_2[:, :, 0] = self.endpoints_1[:, :, 1]
             self.endpoints_2[:, :, 1].normal_(std=0.7)
             self.animation_2[:] = F.interpolate(self.endpoints_2, (self.num_frames,),
-                                              mode='linear', align_corners=True).permute(2, 0, 1)[:]
+                                                mode='linear', align_corners=True).permute(2, 0, 1)[:]
         else:
             self.endpoints_1[:, :, 0] = self.endpoints_2[:, :, 1]
             self.endpoints_1[:, :, 1].normal_(std=0.7)
@@ -167,27 +168,62 @@ class NoiseGenerator(BaseNode):
 
 
 class LabelGenerator(BaseNode):
-    def __init__(self, outgoing: mp.Queue):
+    def __init__(self, outgoing: mp.Queue, params: dict):
         super().__init__()
         self.outgoing = outgoing
+        self.params = params
+        self.num_frames = 32
+        self.frame = self.num_frames
+        self.first = True
 
     def setup(self):
-        num_frames = 32
+        self.label_group = random.choice(label_groups)
+
+        self.labels_1 = random.sample(list(self.label_group.values()), 2)
+        self.endpoints_1 = torch.zeros(1, 1000, 2, device=DEVICE)
+        self.endpoints_1[:, self.labels_1[0], 0] = 1.
+        self.endpoints_1[:, self.labels_1[1], 1] = 1.
+        self.animation_1 = F.interpolate(self.endpoints_1, (self.num_frames,),
+                                         mode='linear', align_corners=True).permute(2, 0, 1)
+
+        self.labels_2 = self.labels_1[:]
+        self.endpoints_2 = self.endpoints_1.clone()
+        self.animation_2 = self.animation_1.clone()
+
+    def restart(self):
         self.frame = 0
-        self.labels = random.sample(list(bugs.values()), 2)
-        self.label_endpoints = torch.zeros(1, 1000, 2, device=DEVICE)
-        self.label_endpoints[:, self.labels[0], 0] = 1.
-        self.label_endpoints[:, self.labels[1], 1] = 1.
-        self.label_vector = F.interpolate(self.label_endpoints,
-                                          (num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+        asd = self.params['label_group'].value
+        self.label_group = label_groups[asd]
+
+        if self.first:
+            self.labels_2[0] = self.labels_1[1]
+            self.labels_2[1] = random.choice(list(self.label_group.values()))
+            self.endpoints_2 = torch.zeros(1, 1000, 2, device=DEVICE)
+            self.endpoints_2[:, self.labels_2[0], 0] = 1.
+            self.endpoints_2[:, self.labels_2[1], 1] = 1.
+            self.animation_2 = F.interpolate(self.endpoints_2, (self.num_frames,),
+                                             mode='linear', align_corners=True).permute(2, 0, 1)
+        else:
+            self.labels_1[0] = self.labels_2[1]
+            self.labels_1[1] = random.choice(list(self.label_group.values()))
+            self.endpoints_1 = torch.zeros(1, 1000, 2, device=DEVICE)
+            self.endpoints_1[:, self.labels_1[0], 0] = 1.
+            self.endpoints_1[:, self.labels_1[1], 1] = 1.
+            self.animation_1 = F.interpolate(self.endpoints_1, (self.num_frames,),
+                                             mode='linear', align_corners=True).permute(2, 0, 1)
+
+        self.first = not self.first
 
     def task(self):
-        self.outgoing.put(self.label_vector[0])
-        return
-        if self.frame >= len(self.label_vector):
-            self.outgoing.put(self.label_vector[-1])
+        if self.params['randomize_label'].value and self.frame == self.num_frames:
+            self.restart()
+
+        current = self.animation_1 if self.first else self.animation_2
+
+        if self.frame >= len(current):
+            self.outgoing.put(current[-1])
         else:
-            self.outgoing.put(self.label_vector[self.frame])
+            self.outgoing.put(current[self.frame])
             self.frame += 1
 
 

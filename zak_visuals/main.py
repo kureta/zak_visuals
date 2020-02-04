@@ -19,8 +19,17 @@ class App:
         rgb = mp.Value(ctypes.c_float)
         stft_scale = mp.Value(ctypes.c_float)
         animate_noise = mp.Value(ctypes.c_float)
-        params = {'rgb': rgb, 'stft_scale': stft_scale, 'animate_noise': animate_noise}
-        rgb.value, stft_scale.value, animate_noise.value = 0., 0., 0.,
+        randomize_label = mp.Value(ctypes.c_float)
+        label_group = mp.Value(ctypes.c_uint8)
+        params = {
+            'rgb': rgb,
+            'stft_scale': stft_scale,
+            'animate_noise': animate_noise,
+            'randomize_label': randomize_label,
+            'label_group': label_group,
+        }
+        rgb.value, stft_scale.value, animate_noise.value, randomize_label.value = 0., 0., 0., 0.
+        label_group.value = 0
         self.osc_server = OSCServer(self.exit, params=params)
 
         self.buffer = mp.Array(ctypes.c_float, 2048)
@@ -34,7 +43,7 @@ class App:
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft)
         # self.image_generator = PGGAN(incoming=self.cqt, outgoing=self.image)
         self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params)
-        self.label_generator = LabelGenerator(outgoing=self.label)
+        self.label_generator = LabelGenerator(outgoing=self.label, params=params)
         self.image_generator = BIGGAN(stft_in=self.stft, noise_in=self.noise, label_in=self.label,
                                       outgoing=self.image, params=params)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, params=params)
