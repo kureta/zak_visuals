@@ -8,12 +8,7 @@
   - [x] interpolate between these two vectors, when animation reaches its final frame, stop.
   - [x] Put final frame into the first frame.
   - [x] Do the same for labels.
-- [ ] Create 2 OSCClients
-      One will relay unhandled messages to Onur
-      Other will send initialization values to TouchOSC
+- [ ] Create OSCClient for relaying unhandled messages to Onur
 - [ ] Use random convolutions effect
 - [ ] Transform stfts from rayleigh to normal distribution
 - [ ] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
-
-first or last frame repeats
-linear scale does not work well for speed
