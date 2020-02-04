@@ -99,15 +99,15 @@ class AudioProcessor(BaseNode):
 
 
 class PGGAN(BaseNode):
-    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue):
-        super().__init__()
+    def __init__(self, pause_event: mp.Event, incoming: mp.Array, outgoing: mp.Queue):
+        super().__init__(pause_event=pause_event)
         self.incoming = incoming
         self.outgoing = outgoing
         checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
         self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE)
 
     def task(self):
-        stft = self.incoming.get()
+        stft = np.ndarray((128,), dtype='float32', buffer=self.incoming.get_obj())
 
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
@@ -210,7 +210,7 @@ class LabelGenerator(BaseNode):
             self.endpoints_2[:, self.labels_2[0], 0] = 1.
             self.endpoints_2[:, self.labels_2[1], 1] = 1.
             self.animation_2[:] = F.interpolate(self.endpoints_2, (self.num_frames,),
-                                                               mode='linear', align_corners=True).permute(2, 0, 1)
+                                                mode='linear', align_corners=True).permute(2, 0, 1)
         else:
             self.labels_1[0] = self.labels_2[1]
             self.labels_1[1] = random.choice(list(self.label_group.values()))
@@ -218,7 +218,7 @@ class LabelGenerator(BaseNode):
             self.endpoints_1[:, self.labels_1[0], 0] = 1.
             self.endpoints_1[:, self.labels_1[1], 1] = 1.
             self.animation_1[:] = F.interpolate(self.endpoints_1, (self.num_frames,),
-                                                               mode='linear', align_corners=True).permute(2, 0, 1)
+                                                mode='linear', align_corners=True).permute(2, 0, 1)
 
         self.first = not self.first
 
@@ -238,8 +238,9 @@ class LabelGenerator(BaseNode):
 
 
 class BIGGAN(BaseNode):
-    def __init__(self, stft_in: mp.Array, noise_in: mp.Queue, label_in: mp.Queue, outgoing: mp.Queue, params: dict):
-        super().__init__()
+    def __init__(self, stft_in: mp.Array, noise_in: mp.Queue, label_in: mp.Queue, outgoing: mp.Queue, params: dict,
+                 pause_event: mp.Event):
+        super().__init__(pause_event=pause_event)
         self.stft_in = stft_in
         self.noise_in = noise_in
         self.label_in = label_in

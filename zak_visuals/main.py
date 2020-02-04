@@ -4,7 +4,7 @@ import signal
 
 from torch import multiprocessing as mp
 
-from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, InteropDisplay, NoiseGenerator, LabelGenerator
+from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, InteropDisplay, NoiseGenerator, LabelGenerator, PGGAN
 from zak_visuals.nodes import JACKInput, OSCServer
 
 logger = mp.log_to_stderr()
@@ -15,6 +15,9 @@ class App:
     def __init__(self):
         mp.set_start_method('spawn', force=True)
         self.exit = mp.Event()
+
+        self.pause_pggan = mp.Event()
+        self.pause_biggan = mp.Event()
 
         rgb = mp.Value(ctypes.c_float)
         stft_scale = mp.Value(ctypes.c_float)
@@ -33,6 +36,7 @@ class App:
             'label_speed': label_speed,
             'noise_speed': noise_speed,
             'noise_std': noise_std,
+            'pause_gans': [self.pause_pggan, self.pause_biggan],
         }
         rgb.value, stft_scale.value, animate_noise.value, randomize_label.value = 0., 0., 0., 0.
         label_speed.value, noise_speed.value, noise_std.value = 0., 0., 0.
@@ -48,11 +52,11 @@ class App:
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft)
-        # self.image_generator = PGGAN(incoming=self.cqt, outgoing=self.image)
+        self.image_generator_2 = PGGAN(pause_event=self.pause_pggan, incoming=self.stft, outgoing=self.image)
         self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params)
         self.label_generator = LabelGenerator(outgoing=self.label, params=params)
         self.image_generator = BIGGAN(stft_in=self.stft, noise_in=self.noise, label_in=self.label,
-                                      outgoing=self.image, params=params)
+                                      outgoing=self.image, params=params, pause_event=self.pause_biggan)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, params=params)
         self.image_display = InteropDisplay(incoming=self.imfx, exit_app=self.exit)
 
@@ -65,6 +69,7 @@ class App:
         self.audio_processor.start()
         self.noise_generator.start()
         self.label_generator.start()
+        self.image_generator_2.start()
         self.image_generator.start()
         self.image_fx.start()
         self.image_display.start()
@@ -79,6 +84,7 @@ class App:
         self.noise_generator.kill()
         self.label_generator.kill()
         self.image_generator.kill()
+        self.image_generator_2.kill()
         self.image_fx.kill()
         self.image_display.kill()
 

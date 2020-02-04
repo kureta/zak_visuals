@@ -46,6 +46,7 @@ class OSCServer(threading.Thread):
         self.dispatcher.map('/controls/randomize_label', self.on_randomize_label)
         self.dispatcher.map('/controls/label_speed', self.on_label_speed)
         self.dispatcher.map('/controls/noise_speed_std', self.on_noise_speed_std)
+        self.dispatcher.map('/controls/pause_gans/*', self.on_pause_gans)
         self.dispatcher.map('/system/quit', self.quit)
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
@@ -66,7 +67,7 @@ class OSCServer(threading.Thread):
         self.params['animate_noise'].value = value
 
     def on_label_group(self, addr, value):
-        if value > 0.:
+        if value:
             idx = addr.split('/')[3]
             self.params['label_group'].value = int(idx) - 1
 
@@ -79,6 +80,14 @@ class OSCServer(threading.Thread):
     def on_noise_speed_std(self, addr, *values):
         self.params['noise_speed'].value = values[0]
         self.params['noise_std'].value = values[1]
+
+    def on_pause_gans(self, addr, value):
+        idx = int(addr.split('/')[4]) - 1
+        print(f'addr: {addr} - values: {value}')
+        if value:
+            self.params['pause_gans'][idx].set()
+        else:
+            self.params['pause_gans'][idx].clear()
 
     def run(self):
         self.server.serve_forever()
