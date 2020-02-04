@@ -11,6 +11,6 @@
 - [ ] Create 2 OSCClients
       One will relay unhandled messages to Onur
       Other will send initialization values to TouchOSC
-- [] Use random convolutions effect
-- [] Transform stfts from rayleigh to normal distribution
-- [] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
+- [ ] Use random convolutions effect
+- [ ] Transform stfts from rayleigh to normal distribution
+- [ ] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128

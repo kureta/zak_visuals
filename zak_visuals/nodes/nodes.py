@@ -235,10 +235,10 @@ class ImageFX(BaseNode):
 
 
 class InteropDisplay(BaseNode):
-    def __init__(self, incoming: mp.Queue, exit_event: mp.Event):
+    def __init__(self, incoming: mp.Queue, exit_app: mp.Event):
         super().__init__()
         self.incoming = incoming
-        self.exit_event = exit_event
+        self.exit_app = exit_app
 
     def setup(self):
         from glumpy import app
@@ -261,4 +261,4 @@ class InteropDisplay(BaseNode):
         self.quad.draw(gl.GL_TRIANGLE_STRIP)
 
         if not self.backend.process(self.clock.tick()):
-            self.exit_event.set()
+            self.exit_app.set()

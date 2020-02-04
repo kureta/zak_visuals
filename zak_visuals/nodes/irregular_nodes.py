@@ -31,9 +31,9 @@ class JACKInput(threading.Thread):
 
 
 class OSCServer(threading.Thread):
-    def __init__(self, exit_event: mp.Event, params: dict):
+    def __init__(self, exit_app: mp.Event, params: dict):
         super().__init__()
-        self.exit_event = exit_event
+        self.exit_app = exit_app
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
@@ -46,7 +46,7 @@ class OSCServer(threading.Thread):
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
     def quit(self, addr, value):
-        self.exit_event.set()
+        self.exit_app.set()
 
     @staticmethod
     def on_unknown_message(addr, *values):

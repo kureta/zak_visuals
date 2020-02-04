@@ -38,30 +38,35 @@ class App:
         self.image_generator = BIGGAN(stft_in=self.cqt, noise_in=self.noise, label_in=self.label,
                                       outgoing=self.image, params=params)
         self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, params=params)
-        self.image_display = InteropDisplay(incoming=self.imfx, exit_event=self.exit)
+        self.image_display = InteropDisplay(incoming=self.imfx, exit_app=self.exit)
 
     def run(self):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+
         self.osc_server.start()
         self.jack_input.start()
+
         self.audio_processor.start()
         self.noise_generator.start()
         self.label_generator.start()
         self.image_generator.start()
         self.image_fx.start()
         self.image_display.start()
+
         signal.signal(signal.SIGINT, self.on_keyboard_interrupt)
+
         self.exit.wait()
         self.exit_handler()
 
     def exit_handler(self):
-        self.jack_input.join()
         self.audio_processor.kill()
         self.noise_generator.kill()
         self.label_generator.kill()
         self.image_generator.kill()
         self.image_fx.kill()
         self.image_display.kill()
+
+        self.jack_input.join()
         self.osc_server.join()
 
     def on_keyboard_interrupt(self, sig, _):
