@@ -106,6 +106,9 @@ class PGGAN(BaseNode):
         checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
         self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE)
 
+    def setup(self):
+        torch.autograd.set_grad_enabled(False)
+
     def task(self):
         stft = np.ndarray((128,), dtype='float32', buffer=self.incoming.get_obj())
 
@@ -113,13 +116,13 @@ class PGGAN(BaseNode):
         features[0, :, 0, 0] = stft
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
-        with torch.no_grad():
-            image = self.generator(features)
-            image = F.interpolate(image, (1920, 1080))
 
-            image.squeeze_(0)
-            image = image.permute(1, 2, 0)
-            image = image.expand(1920, 1080, 3)
+        image = self.generator(features)
+        image = F.interpolate(image, (1920, 1080))
+
+        image.squeeze_(0)
+        image = image.permute(1, 2, 0)
+        image = image.expand(1920, 1080, 3)
 
         self.outgoing.put(image)
 
@@ -136,6 +139,7 @@ class NoiseGenerator(BaseNode):
         self.first = True
 
     def setup(self):
+        torch.autograd.set_grad_enabled(False)
         self.endpoints_1 = hypersphere(torch.randn(1, 128, 2, device=DEVICE), radius=self.sampling_radius)
         self.animation_1 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
         self.animation_1 = F.interpolate(self.endpoints_1, (self.num_frames,),
@@ -160,7 +164,7 @@ class NoiseGenerator(BaseNode):
         self.first = not self.first
 
     def task(self):
-        self.speed = int(self.params['noise_speed'].value * 127 + 1)
+        self.speed = int(self.params['noise_speed'].value * 63 + 1)
         if self.params['animate_noise'].value and self.frame >= self.num_frames:
             self.restart()
 
@@ -184,6 +188,7 @@ class LabelGenerator(BaseNode):
         self.first = True
 
     def setup(self):
+        torch.autograd.set_grad_enabled(False)
         self.label_group = label_groups[0]
 
         self.labels_1 = random.sample(list(self.label_group.values()), 2)
@@ -250,6 +255,9 @@ class BIGGAN(BaseNode):
         self.generator = BigGAN.from_pretrained('biggan-deep-512')
         self.generator.to(DEVICE)
 
+    def setup(self):
+        torch.autograd.set_grad_enabled(False)
+
     def task(self):
         noise = self.noise_in.get()
         label = self.label_in.get()
@@ -264,12 +272,11 @@ class BIGGAN(BaseNode):
         features = features.to(DEVICE)
         features = features + noise
 
-        with torch.no_grad():
-            image = self.generator(features, label, 0.4)
-            image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')
+        image = self.generator(features, label, 0.4)
+        image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')
 
-            image.squeeze_(0)
-            image = image.permute(1, 2, 0)
+        image.squeeze_(0)
+        image = image.permute(1, 2, 0)
 
         self.outgoing.put(image)
 
@@ -280,6 +287,9 @@ class ImageFX(BaseNode):
         self.incoming = incoming
         self.outgoing = outgoing
         self.params = params
+
+    def setup(self):
+        torch.autograd.set_grad_enabled(False)
 
     def task(self):
         image: torch.Tensor = self.incoming.get()

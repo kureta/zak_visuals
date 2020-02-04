@@ -83,7 +83,6 @@ class OSCServer(threading.Thread):
 
     def on_pause_gans(self, addr, value):
         idx = int(addr.split('/')[4]) - 1
-        print(f'addr: {addr} - values: {value}')
         if value:
             self.params['pause_gans'][idx].set()
         else:
