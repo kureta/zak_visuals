@@ -11,7 +11,7 @@ from torch import multiprocessing as mp
 from torch.nn import functional as F
 
 from berlin.pg_gan.model import Generator
-from zak_visuals.nodes.base_nodes import BaseNode, Edge
+from zak_visuals.nodes.base_nodes import BaseNode
 
 DEVICE = 'cuda:0'
 
@@ -80,36 +80,31 @@ architectural = {
 
 
 class AudioProcessor(BaseNode):
-    def __init__(self, incoming: mp.Array, outgoing: Edge):
+    def __init__(self, incoming: mp.Array, outgoing: mp.Queue):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
 
-    def run(self):
+    def task(self):
         buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming.get_obj())
 
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
         stft = stft[0:128]
-        self.outgoing.write(stft)
-
-    def cleanup(self):
-        self.outgoing.cleanup_output()
+        self.outgoing.put(stft)
 
 
 class PGGAN(BaseNode):
-    def __init__(self, incoming: Edge, outgoing: Edge):
+    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
         checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
         self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE)
 
-    def run(self):
-        stft = self.incoming.read()
-        if stft is None:
-            return
+    def task(self):
+        stft = self.incoming.get()
 
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
@@ -119,23 +114,15 @@ class PGGAN(BaseNode):
             image = self.generator(features)
             image = F.interpolate(image, (1920, 1080))
 
-            image = (image + 1) / 2
-            image = image * 255
             image.squeeze_(0)
             image = image.permute(1, 2, 0)
             image = image.expand(1920, 1080, 3)
 
-            image = image.cpu().numpy().astype('uint8')
-
-        self.outgoing.write(image)
-
-    def cleanup(self):
-        self.outgoing.cleanup_output()
-        self.incoming.cleanup_input()
+        self.outgoing.put(image)
 
 
 class NoiseGenerator(BaseNode):
-    def __init__(self, outgoing: Edge, params: dict):
+    def __init__(self, outgoing: mp.Queue, params: dict):
         super().__init__()
         self.outgoing = outgoing
         self.params = params
@@ -154,21 +141,18 @@ class NoiseGenerator(BaseNode):
         self.noise_vector = F.interpolate(self.noise_vector_endpoints,
                                           (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
-    def run(self):
+    def task(self):
         if self.params['animate_noise'] and self.frame == 32:
             self.restart()
         if self.frame >= len(self.noise_vector):
-            self.outgoing.write(self.noise_vector[-1])
+            self.outgoing.put(self.noise_vector[-1])
         else:
-            self.outgoing.write(self.noise_vector[self.frame])
+            self.outgoing.put(self.noise_vector[self.frame])
             self.frame += 1
-
-    def cleanup(self):
-        self.outgoing.cleanup_output()
 
 
 class LabelGenerator(BaseNode):
-    def __init__(self, outgoing: Edge):
+    def __init__(self, outgoing: mp.Queue):
         super().__init__()
         self.outgoing = outgoing
 
@@ -182,19 +166,16 @@ class LabelGenerator(BaseNode):
         self.label_vector = F.interpolate(self.label_endpoints,
                                           (num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
-    def run(self):
+    def task(self):
         if self.frame >= len(self.label_vector):
-            self.outgoing.write(self.label_vector[-1])
+            self.outgoing.put(self.label_vector[-1])
         else:
-            self.outgoing.write(self.label_vector[self.frame])
+            self.outgoing.put(self.label_vector[self.frame])
             self.frame += 1
-
-    def cleanup(self):
-        self.outgoing.cleanup_output()
 
 
 class BIGGAN(BaseNode):
-    def __init__(self, stft_in: Edge, noise_in: Edge, label_in: Edge, outgoing: Edge, params: dict):
+    def __init__(self, stft_in: mp.Queue, noise_in: mp.Queue, label_in: mp.Queue, outgoing: mp.Queue, params: dict):
         super().__init__()
         self.stft_in = stft_in
         self.noise_in = noise_in
@@ -205,10 +186,10 @@ class BIGGAN(BaseNode):
         self.generator = BigGAN.from_pretrained('biggan-deep-512')
         self.generator.to(DEVICE)
 
-    def run(self):
-        stft = self.stft_in.read()
-        noise = self.noise_in.read()
-        label = self.label_in.read()
+    def task(self):
+        stft = self.stft_in.get()
+        noise = self.noise_in.get()
+        label = self.label_in.get()
 
         scale = self.params['stft_scale'] * 250
 
@@ -226,26 +207,19 @@ class BIGGAN(BaseNode):
             image.squeeze_(0)
             image = image.permute(1, 2, 0)
 
-        self.outgoing.write(image)
-
-    def cleanup(self):
-        self.outgoing.cleanup_output()
-        self.stft_in.cleanup_input()
-        self.noise_in.cleanup_input()
-        self.label_in.cleanup_input()
+        self.outgoing.put(image)
 
 
 class ImageFX(BaseNode):
-    def __init__(self, incoming: Edge, outgoing: Edge, params: dict):
+    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, params: dict):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
         self.params = params
 
-    def run(self):
-        image: torch.Tensor = self.incoming.read()
-        if image is None:
-            return
+    def task(self):
+        image: torch.Tensor = self.incoming.get()
+
         rgb = self.params['rgb'] * 50
 
         cimage = cp.asarray(image)
@@ -257,15 +231,11 @@ class ImageFX(BaseNode):
         cimage = cp.clip(cimage, 0, 255).astype(cp.uint8)
         nimage = cp.asnumpy(cimage)
 
-        self.outgoing.write(nimage)
-
-    def cleanup(self):
-        self.outgoing.cleanup_output()
-        self.incoming.cleanup_input()
+        self.outgoing.put(nimage)
 
 
 class InteropDisplay(BaseNode):
-    def __init__(self, incoming: Edge, exit_event: mp.Event):
+    def __init__(self, incoming: mp.Queue, exit_event: mp.Event):
         super().__init__()
         self.incoming = incoming
         self.exit_event = exit_event
@@ -282,10 +252,8 @@ class InteropDisplay(BaseNode):
         self.backend = app.__backend__
         self.clock = app.__init__(backend=self.backend)
 
-    def run(self):
-        image = self.incoming.read()
-        if image is None:
-            return
+    def task(self):
+        image = self.incoming.get()
 
         self.window.set_title(f'{self.window.fps:.2f}')
         self.quad['texture'] = image
@@ -294,6 +262,3 @@ class InteropDisplay(BaseNode):
 
         if not self.backend.process(self.clock.tick()):
             self.exit_event.set()
-
-    def cleanup(self):
-        self.incoming.cleanup_input()

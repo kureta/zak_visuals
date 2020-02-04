@@ -1,12 +1,11 @@
 import ctypes
-import signal
 import logging
+import signal
 
 from torch import multiprocessing as mp
 
 from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, InteropDisplay, NoiseGenerator, LabelGenerator
 from zak_visuals.nodes import JACKInput, OSCServer
-from zak_visuals.nodes.base_nodes import Edge
 
 logger = mp.log_to_stderr()
 logger.setLevel(logging.INFO)
@@ -25,11 +24,11 @@ class App:
         self.osc_server = OSCServer(self.exit, params=params)
 
         self.buffer = mp.Array(ctypes.c_float, 2048)
-        self.cqt = Edge()
-        self.noise = Edge()
-        self.label = Edge()
-        self.image = Edge()
-        self.imfx = Edge()
+        self.cqt = mp.Queue(maxsize=1)
+        self.noise = mp.Queue(maxsize=1)
+        self.label = mp.Queue(maxsize=1)
+        self.image = mp.Queue(maxsize=1)
+        self.imfx = mp.Queue(maxsize=1)
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
@@ -56,14 +55,14 @@ class App:
         self.exit_handler()
 
     def exit_handler(self):
-        self.jack_input.stop()
-        self.audio_processor.stop()
-        self.noise_generator.stop()
-        self.label_generator.stop()
-        self.image_generator.stop()
-        self.image_fx.stop()
-        self.image_display.stop()
-        self.osc_server.stop()
+        self.jack_input.join()
+        self.audio_processor.kill()
+        self.noise_generator.kill()
+        self.label_generator.kill()
+        self.image_generator.kill()
+        self.image_fx.kill()
+        self.image_display.kill()
+        self.osc_server.join()
 
     def on_keyboard_interrupt(self, sig, _):
         print("KeyboardInterrupt (ID: {}) has been caught. Cleaning up...".format(sig))

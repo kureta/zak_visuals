@@ -5,40 +5,34 @@ from pythonosc import dispatcher, osc_server
 from torch import multiprocessing as mp
 
 
-class JACKInput:
+class JACKInput(threading.Thread):
     def __init__(self, outgoing: mp.Array):
+        super().__init__()
         self.buffer = outgoing
         self.client = jack.Client('Zak')
         self.inport: jack.OwnPort = self.client.inports.register('input_1')
         self.exit = threading.Event()
         self.client.set_process_callback(self.read_buffer)
-        self.processor = threading.Thread(target=self.process)
 
     def read_buffer(self, frames: int):
         assert frames == self.client.blocksize
         self.buffer[:] = self.inport.get_array()[:]
 
-    def process(self):
+    def run(self):
         sysport: jack.Port = self.client.get_ports(is_audio=True, is_output=True, is_physical=True)[0]
 
         with self.client:
             self.client.connect(sysport, self.inport)
             self.exit.wait()
 
-    def start(self):
-        self.processor.start()
-
-    def stop(self):
-        print(f'Exiting {self.__class__.__name__} process...')
+    def join(self, **kwargs):
         self.exit.set()
-        self.processor.join()
-        print(f'{self.__class__.__name__} is kill!')
+        super(JACKInput, self).join(**kwargs)
 
 
-class OSCServer:
+class OSCServer(threading.Thread):
     def __init__(self, exit_event: mp.Event, params: dict):
         super().__init__()
-        self.processor = threading.Thread(target=self.process)
         self.exit_event = exit_event
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
@@ -67,14 +61,9 @@ class OSCServer:
     def on_animate_noise(self, addr, value):
         self.params['animate_noise'] = value
 
-    def process(self):
+    def run(self):
         self.server.serve_forever()
 
-    def start(self):
-        self.processor.start()
-
-    def stop(self):
-        print(f'Exiting {self.__class__.__name__}')
+    def join(self, **kwargs):
         self.server.shutdown()
-        self.processor.join()
-        print(f'{self.__class__.__name__} is kill!')
+        super(OSCServer, self).join(**kwargs)
