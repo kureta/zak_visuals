@@ -11,6 +11,7 @@ from torch import multiprocessing as mp
 from torch.nn import functional as F
 
 from berlin.pg_gan.model import Generator
+from berlin.pg_gan.utils import hypersphere
 from zak_visuals.nodes.base_nodes import BaseNode
 
 DEVICE = 'cuda:0'
@@ -130,12 +131,12 @@ class NoiseGenerator(BaseNode):
         self.params = params
         self.num_frames = 128
         self.speed = 1
-        self.std = 0.01
+        self.sampling_radius = 0.01
         self.frame = self.num_frames
         self.first = True
 
     def setup(self):
-        self.endpoints_1 = torch.randn(1, 128, 2, device=DEVICE) * self.std
+        self.endpoints_1 = hypersphere(torch.randn(1, 128, 2, device=DEVICE), radius=self.sampling_radius)
         self.animation_1 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
         self.animation_1 = F.interpolate(self.endpoints_1, (self.num_frames,),
                                          mode='linear', align_corners=True).permute(2, 0, 1)
@@ -144,15 +145,15 @@ class NoiseGenerator(BaseNode):
 
     def restart(self):
         self.frame = 0
-        self.std = self.params['noise_std'].value * 1.2 + 0.01
+        self.sampling_radius = self.params['noise_std'].value * 12. + 0.01
         if self.first:
             self.endpoints_2[:, :, 0] = self.endpoints_1[:, :, 1]
-            self.endpoints_2[:, :, 1].normal_(std=self.std)
+            self.endpoints_2[:, :, 1] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
             self.animation_2[:] = F.interpolate(self.endpoints_2, (self.num_frames,),
                                                 mode='linear', align_corners=True).permute(2, 0, 1)
         else:
             self.endpoints_1[:, :, 0] = self.endpoints_2[:, :, 1]
-            self.endpoints_1[:, :, 1].normal_(std=self.std)
+            self.endpoints_1[:, :, 1] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
             self.animation_1[:] = F.interpolate(self.endpoints_1, (self.num_frames,),
                                                 mode='linear', align_corners=True).permute(2, 0, 1)
 
@@ -225,6 +226,7 @@ class LabelGenerator(BaseNode):
         self.speed = int(self.params['label_speed'].value * 31 + 1)
         if self.params['randomize_label'].value and self.frame >= self.num_frames:
             self.restart()
+            print('Label changed.')
 
         current = self.animation_1 if self.first else self.animation_2
 
