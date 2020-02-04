@@ -39,12 +39,14 @@ class OSCServer(threading.Thread):
 
         self.params = params
 
-        self.dispatcher.map('/2/rgb', self.on_rgb_intensity)
-        self.dispatcher.map('/2/noise', self.on_noise_scale)
-        self.dispatcher.map('/2/animate_noise', self.on_animate_noise)
-        self.dispatcher.map('/2/label_group/*', self.on_label_group)
-        self.dispatcher.map('/2/randomize_label', self.on_randomize_label)
-        self.dispatcher.map('/2/quit', self.quit)
+        self.dispatcher.map('/controls/rgb', self.on_rgb_intensity)
+        self.dispatcher.map('/controls/noise', self.on_noise_scale)
+        self.dispatcher.map('/controls/animate_noise', self.on_animate_noise)
+        self.dispatcher.map('/controls/label_group/*', self.on_label_group)
+        self.dispatcher.map('/controls/randomize_label', self.on_randomize_label)
+        self.dispatcher.map('/controls/label_speed', self.on_label_speed)
+        self.dispatcher.map('/controls/noise_speed_std', self.on_noise_speed_std)
+        self.dispatcher.map('/system/quit', self.quit)
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
     def quit(self, addr, value):
@@ -70,6 +72,13 @@ class OSCServer(threading.Thread):
 
     def on_randomize_label(self, addr, value):
         self.params['randomize_label'].value = value
+
+    def on_label_speed(self, addr, value):
+        self.params['label_speed'].value = value
+
+    def on_noise_speed_std(self, addr, *values):
+        self.params['noise_speed'].value = values[0]
+        self.params['noise_std'].value = values[1]
 
     def run(self):
         self.server.serve_forever()

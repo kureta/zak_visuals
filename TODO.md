@@ -2,15 +2,18 @@
 - [x] We will need multi-input processor nodes.
 - [x] Interpolated noise (animation parameters) generation into its own process
 - [x] Do ImageFX in cupy.
-- [ ] Animate latent space exploration in BigGAN
+- [x] Animate latent space exploration in BigGAN
   - [x] Create a single latent vector.
   - [x] When an animation is triggered, create a second latent vector,
   - [x] interpolate between these two vectors, when animation reaches its final frame, stop.
   - [x] Put final frame into the first frame.
-  - [ ] Do the same for labels. But instead of random, start and end labels will be selected from TouchOSC.
+  - [x] Do the same for labels.
 - [ ] Create 2 OSCClients
       One will relay unhandled messages to Onur
       Other will send initialization values to TouchOSC
 - [ ] Use random convolutions effect
 - [ ] Transform stfts from rayleigh to normal distribution
 - [ ] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
+
+first or last frame repeats
+linear scale does not work well for speed

@@ -21,14 +21,21 @@ class App:
         animate_noise = mp.Value(ctypes.c_float)
         randomize_label = mp.Value(ctypes.c_float)
         label_group = mp.Value(ctypes.c_uint8)
+        label_speed = mp.Value(ctypes.c_float)
+        noise_speed = mp.Value(ctypes.c_float)
+        noise_std = mp.Value(ctypes.c_float)
         params = {
             'rgb': rgb,
             'stft_scale': stft_scale,
             'animate_noise': animate_noise,
             'randomize_label': randomize_label,
             'label_group': label_group,
+            'label_speed': label_speed,
+            'noise_speed': noise_speed,
+            'noise_std': noise_std,
         }
         rgb.value, stft_scale.value, animate_noise.value, randomize_label.value = 0., 0., 0., 0.
+        label_speed.value, noise_speed.value, noise_std.value = 0., 0., 0.
         label_group.value = 0
         self.osc_server = OSCServer(self.exit, params=params)
 
