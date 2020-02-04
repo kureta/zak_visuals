@@ -128,30 +128,41 @@ class NoiseGenerator(BaseNode):
         self.params = params
         self.num_frames = 32
         self.frame = 0
+        self.first = True
 
     def setup(self):
-        self.noise_vector_endpoints = torch.randn(1, 128, 2, device=DEVICE) * 0.7
-        self.noise_vector = F.interpolate(self.noise_vector_endpoints,
-                                          (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+        self.endpoints_1 = torch.randn(1, 128, 2, device=DEVICE) * 0.7
+        self.animation_1 = F.interpolate(self.endpoints_1,
+                                         (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+        self.endpoints_2 = torch.randn(1, 128, 2, device=DEVICE) * 0.7
+        self.animation_2 = F.interpolate(self.endpoints_2,
+                                         (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
     def restart(self):
         self.frame = 0
-        self.noise_vector_endpoints[:, :, 0] = self.noise_vector_endpoints[:, :, 1]
-        self.noise_vector_endpoints[:, :, 1].normal_(std=0.7)
-        self.noise_vector[:-1] = F.interpolate(self.noise_vector_endpoints, (self.num_frames,),
-                                               mode='linear', align_corners=True).permute(2, 0, 1)[:-1]
-        self.outgoing.put(self.noise_vector[0])
+        if self.first:
+            self.endpoints_2[:, :, 0] = self.endpoints_1[:, :, 1]
+            self.endpoints_2[:, :, 1].normal_(std=0.7)
+            self.animation_2[:] = F.interpolate(self.endpoints_2, (self.num_frames,),
+                                              mode='linear', align_corners=True).permute(2, 0, 1)[:]
+        else:
+            self.endpoints_1[:, :, 0] = self.endpoints_2[:, :, 1]
+            self.endpoints_1[:, :, 1].normal_(std=0.7)
+            self.animation_1[:] = F.interpolate(self.endpoints_1, (self.num_frames,),
+                                                mode='linear', align_corners=True).permute(2, 0, 1)[:]
+
+        self.first = not self.first
 
     def task(self):
         if self.params['animate_noise'].value and self.frame == self.num_frames:
             self.restart()
 
-        if self.frame >= len(self.noise_vector):
-            self.outgoing.put(self.noise_vector[-1])
+        current = self.animation_1 if self.first else self.animation_2
+
+        if self.frame >= len(current):
+            self.outgoing.put(current[-1])
         else:
-            if self.frame == self.num_frames - 1:
-                self.noise_vector[-1] = self.noise_vector_endpoints[:, :, 1]
-            self.outgoing.put(self.noise_vector[self.frame])
+            self.outgoing.put(current[self.frame])
             self.frame += 1
 
 
