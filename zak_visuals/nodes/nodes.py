@@ -89,7 +89,7 @@ class AudioProcessor(BaseNode):
         self.outgoing = outgoing
 
     def task(self):
-        buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming.get_obj())
+        buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming)
 
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
@@ -114,7 +114,7 @@ class PGGAN(BaseNode):
 
     def task(self):
         noise = self.noise.get().unsqueeze(2).unsqueeze(3)
-        stft = np.ndarray((128,), dtype='float32', buffer=self.incoming.get_obj())
+        stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
 
         scale = self.params['stft_scale'].value * 250
 
@@ -269,7 +269,7 @@ class BIGGAN(BaseNode):
     def task(self):
         noise = self.noise_in.get()
         label = self.label_in.get()
-        stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in.get_obj())
+        stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
         scale = self.params['stft_scale'].value * 250
 
@@ -307,7 +307,7 @@ class ImageFX(BaseNode):
         cimage = cp.asarray(image)
         for idx in range(3):
             shift = np.random.randn(2).astype('float32') * rgb
-            cimage[:, :, idx] = cpi.shift(cimage[:, :, idx], shift)
+            cimage[:, :, idx] = cpi.shift(cimage[:, :, idx], shift, mode='mirror')
 
         cimage = (cimage + 1.) / 2 * 255
         cimage = cp.clip(cimage, 0, 255).astype(cp.uint8)
