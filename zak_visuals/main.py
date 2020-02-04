@@ -1,5 +1,6 @@
 import ctypes
 import signal
+import logging
 
 from torch import multiprocessing as mp
 
@@ -7,18 +8,21 @@ from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, InteropDisplay, N
 from zak_visuals.nodes import JACKInput, OSCServer
 from zak_visuals.nodes.base_nodes import Edge
 
+logger = mp.log_to_stderr()
+logger.setLevel(logging.INFO)
+
 
 class App:
     def __init__(self):
         mp.set_start_method('spawn', force=True)
         self.exit = mp.Event()
 
-        self.rgb_intensity = mp.Value(ctypes.c_float, 1)
-        self.rgb_intensity.value = 0.
-        self.noise_scale = mp.Value(ctypes.c_float, 1)
-        self.noise_scale.value = 0.
-
-        self.osc_server = OSCServer(self.exit, rgb_intensity=self.rgb_intensity, noise_scale=self.noise_scale)
+        self.manager = mp.Manager()
+        params = self.manager.dict()
+        params['rgb'] = 0.
+        params['stft_scale'] = 0.
+        params['animate_noise'] = False
+        self.osc_server = OSCServer(self.exit, params=params)
 
         self.buffer = mp.Array(ctypes.c_float, 2048)
         self.cqt = Edge()
@@ -30,11 +34,11 @@ class App:
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.cqt)
         # self.image_generator = PGGAN(incoming=self.cqt, outgoing=self.image)
-        self.noise_generator = NoiseGenerator(outgoing=self.noise)
+        self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params)
         self.label_generator = LabelGenerator(outgoing=self.label)
         self.image_generator = BIGGAN(stft_in=self.cqt, noise_in=self.noise, label_in=self.label,
-                                      outgoing=self.image, noise_scale=self.noise_scale)
-        self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, rgb_intensity=self.rgb_intensity)
+                                      outgoing=self.image, params=params)
+        self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, params=params)
         self.image_display = InteropDisplay(incoming=self.imfx, exit_event=self.exit)
 
     def run(self):

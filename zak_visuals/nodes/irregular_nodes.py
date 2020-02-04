@@ -36,18 +36,18 @@ class JACKInput:
 
 
 class OSCServer:
-    def __init__(self, exit_event: mp.Event, rgb_intensity: mp.Value, noise_scale: mp.Value):
+    def __init__(self, exit_event: mp.Event, params: dict):
         super().__init__()
         self.processor = threading.Thread(target=self.process)
         self.exit_event = exit_event
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
-        self.rgb_intensity = rgb_intensity
-        self.noise_scale = noise_scale
+        self.params = params
 
         self.dispatcher.map('/2/rgb', self.on_rgb_intensity)
         self.dispatcher.map('/2/noise', self.on_noise_scale)
+        self.dispatcher.map('/2/animate_noise', self.on_animate_noise)
         self.dispatcher.map('/2/quit', self.quit)
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
@@ -59,10 +59,13 @@ class OSCServer:
         print(f'addr: {addr}', f'values: {values}')
 
     def on_rgb_intensity(self, addr, value):
-        self.rgb_intensity.value = value
+        self.params['rgb'] = value
 
     def on_noise_scale(self, addr, value):
-        self.noise_scale.value = value
+        self.params['stft_scale'] = value
+
+    def on_animate_noise(self, addr, value):
+        self.params['animate_noise'] = value
 
     def process(self):
         self.server.serve_forever()

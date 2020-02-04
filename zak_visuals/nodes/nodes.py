@@ -13,7 +13,6 @@ from torch.nn import functional as F
 from berlin.pg_gan.model import Generator
 from zak_visuals.nodes.base_nodes import BaseNode, Edge
 
-CHECKPOINT_PATH = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
 DEVICE = 'cuda:0'
 
 vertex = """
@@ -36,6 +35,7 @@ fragment = """
         gl_FragColor = texture2D(texture, v_texcoord);
     }
 """
+
 bugs = {
     'fly': 308,
     'ant': 310,
@@ -103,7 +103,8 @@ class PGGAN(BaseNode):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
-        self.generator: Generator = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
+        checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
+        self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE)
 
     def run(self):
         stft = self.incoming.read()
@@ -134,9 +135,10 @@ class PGGAN(BaseNode):
 
 
 class NoiseGenerator(BaseNode):
-    def __init__(self, outgoing: Edge):
+    def __init__(self, outgoing: Edge, params: dict):
         super().__init__()
         self.outgoing = outgoing
+        self.params = params
 
     def setup(self):
         self.num_frames = 32
@@ -145,7 +147,16 @@ class NoiseGenerator(BaseNode):
         self.noise_vector = F.interpolate(self.noise_vector_endpoints,
                                           (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
 
+    def restart(self):
+        self.frame = 0
+        self.noise_vector_endpoints[:, :, 0] = self.noise_vector_endpoints[:, :, 1]
+        self.noise_vector_endpoints[:, :, 1].normal_(std=0.7)
+        self.noise_vector = F.interpolate(self.noise_vector_endpoints,
+                                          (self.num_frames,), mode='linear', align_corners=True).permute(2, 0, 1)
+
     def run(self):
+        if self.params['animate_noise'] and self.frame == 32:
+            self.restart()
         if self.frame >= len(self.noise_vector):
             self.outgoing.write(self.noise_vector[-1])
         else:
@@ -183,13 +194,13 @@ class LabelGenerator(BaseNode):
 
 
 class BIGGAN(BaseNode):
-    def __init__(self, stft_in: Edge, noise_in: Edge, label_in: Edge, outgoing: Edge, noise_scale: mp.Value):
+    def __init__(self, stft_in: Edge, noise_in: Edge, label_in: Edge, outgoing: Edge, params: dict):
         super().__init__()
         self.stft_in = stft_in
         self.noise_in = noise_in
         self.label_in = label_in
         self.outgoing = outgoing
-        self.noise_scale = noise_scale
+        self.params = params
 
         self.generator = BigGAN.from_pretrained('biggan-deep-512')
         self.generator.to(DEVICE)
@@ -198,11 +209,8 @@ class BIGGAN(BaseNode):
         stft = self.stft_in.read()
         noise = self.noise_in.read()
         label = self.label_in.read()
-        for element in [stft, noise, label]:
-            if element is None:
-                return
 
-        scale = self.noise_scale.value * 250
+        scale = self.params['stft_scale'] * 250
 
         features = np.zeros((1, 128), dtype='float32')
         features[0, :] = stft * scale
@@ -228,17 +236,17 @@ class BIGGAN(BaseNode):
 
 
 class ImageFX(BaseNode):
-    def __init__(self, incoming: Edge, outgoing: Edge, rgb_intensity: mp.Value):
+    def __init__(self, incoming: Edge, outgoing: Edge, params: dict):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
-        self.rgb_intensity = rgb_intensity
+        self.params = params
 
     def run(self):
         image: torch.Tensor = self.incoming.read()
         if image is None:
             return
-        rgb = self.rgb_intensity.value * 50
+        rgb = self.params['rgb'] * 50
 
         cimage = cp.asarray(image)
         for idx in range(3):
