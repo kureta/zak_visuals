@@ -1,4 +1,3 @@
-from PIL import Image
 import argparse
 import copy
 import os
@@ -8,12 +7,13 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.optim import Adam
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from torchvision.utils import save_image
-import torchvision.transforms.functional as tvf
 import torch.functional as F
+import torchvision.transforms.functional as tvf
+from PIL import Image
+from torch.optim import Adam
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from torchvision.utils import save_image
 
 from berlin.pg_gan.model import Generator, Discriminator
 from berlin.pg_gan.progressBar import print_progress_bar
@@ -203,14 +203,14 @@ while True:
                            length=20,
                            prefix=f'Epoch {epoch} ',
                            suffix=f', d_loss: {d_loss.item():.3f}'
-                                f', d_loss_W: {d_loss_W.item():.3f}'
-                                f', GP: {gradient_penalty.item():.3f}'
-                                f', progress: {P.p:.2f}')
+                                  f', d_loss_W: {d_loss_W.item():.3f}'
+                                  f', GP: {gradient_penalty.item():.3f}'
+                                  f', progress: {P.p:.2f}')
 
     print_progress_bar(total, total,
                        done=f'Epoch [{epoch:>3d}]  d_loss: {np.mean(lossEpochD):.4f}'
-                          f', d_loss_W: {np.mean(lossEpochD_W):.3f}'
-                          f', progress: {P.p:.2f}, time: {time() - t0:.2f}s'
+                            f', d_loss_W: {np.mean(lossEpochD_W):.3f}'
+                            f', progress: {P.p:.2f}, time: {time() - t0:.2f}s'
                        )
 
     d_losses = np.append(d_losses, lossEpochD)
