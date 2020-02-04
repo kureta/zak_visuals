@@ -52,7 +52,8 @@ class App:
 
         self.jack_input = JACKInput(outgoing=self.buffer)
         self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft)
-        self.image_generator_2 = PGGAN(pause_event=self.pause_pggan, incoming=self.stft, outgoing=self.image)
+        self.image_generator_2 = PGGAN(pause_event=self.pause_pggan, incoming=self.stft, noise=self.noise,
+                                       outgoing=self.image, params=params)
         self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params)
         self.label_generator = LabelGenerator(outgoing=self.label, params=params)
         self.image_generator = BIGGAN(stft_in=self.stft, noise_in=self.noise, label_in=self.label,

@@ -99,10 +99,13 @@ class AudioProcessor(BaseNode):
 
 
 class PGGAN(BaseNode):
-    def __init__(self, pause_event: mp.Event, incoming: mp.Array, outgoing: mp.Queue):
+    def __init__(self, pause_event: mp.Event, incoming: mp.Array, noise: mp.Queue, outgoing: mp.Queue,
+                 params: dict):
         super().__init__(pause_event=pause_event)
         self.incoming = incoming
+        self.noise = noise
         self.outgoing = outgoing
+        self.params = params
         checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
         self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE)
 
@@ -110,14 +113,19 @@ class PGGAN(BaseNode):
         torch.autograd.set_grad_enabled(False)
 
     def task(self):
+        noise = self.noise.get().unsqueeze(2).unsqueeze(3)
         stft = np.ndarray((128,), dtype='float32', buffer=self.incoming.get_obj())
 
+        scale = self.params['stft_scale'].value * 250
+
         features = np.zeros((1, 128, 1, 1), dtype='float32')
-        features[0, :, 0, 0] = stft
+        features[0, :, 0, 0] = stft * scale
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
+        features = features + noise
 
         image = self.generator(features)
+
         image = F.interpolate(image, (1920, 1080))
 
         image.squeeze_(0)
@@ -292,7 +300,7 @@ class ImageFX(BaseNode):
         torch.autograd.set_grad_enabled(False)
 
     def task(self):
-        image: torch.Tensor = self.incoming.get()
+        image: torch.Tensor = self.incoming.get().clone()
 
         rgb = self.params['rgb'].value * 50
 
