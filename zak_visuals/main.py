@@ -16,10 +16,10 @@ class App:
         mp.set_start_method('spawn', force=True)
         self.exit = mp.Event()
 
-        self.pause_pggan = mp.Event()
-        self.pause_biggan = mp.Event()
-        self.pause_audio = mp.Event()
-        self.pause_noise = mp.Event()
+        pause_pggan = mp.Event()
+        pause_biggan = mp.Event()
+        pause_audio = mp.Event()
+        pause_noise = mp.Event()
 
         rgb = mp.Value(ctypes.c_float, lock=False)
         stft_scale = mp.Value(ctypes.c_float, lock=False)
@@ -29,6 +29,7 @@ class App:
         label_speed = mp.Value(ctypes.c_float, lock=False)
         noise_speed = mp.Value(ctypes.c_float, lock=False)
         noise_std = mp.Value(ctypes.c_float, lock=False)
+        rms_influence = mp.Value(ctypes.c_float, lock=False)
         params = {
             'rgb': rgb,
             'stft_scale': stft_scale,
@@ -38,31 +39,33 @@ class App:
             'label_speed': label_speed,
             'noise_speed': noise_speed,
             'noise_std': noise_std,
-            'pause_gans': [self.pause_pggan, self.pause_biggan],
-            'pause_all': [self.pause_audio, self.pause_noise],
+            'pause_gans': [pause_pggan, pause_biggan],
+            'pause_all': [pause_audio, pause_noise],
+            'rms_influence': rms_influence
         }
         rgb.value, stft_scale.value, animate_noise.value, randomize_label.value = 0., 0., 0., 0.
-        label_speed.value, noise_speed.value, noise_std.value = 0., 0., 0.
+        label_speed.value, noise_speed.value, noise_std.value, rms_influence.value = 0., 0., 0., 0.
         label_group.value = 0
+
+        buffer = mp.Array(ctypes.c_float, 2048, lock=False)
+        stft = mp.Array(ctypes.c_float, 128, lock=False)
+        rms = mp.Value(ctypes.c_float, lock=False)
+        noise = mp.Queue(maxsize=1)
+        label = mp.Queue(maxsize=1)
+        image = mp.Queue(maxsize=1)
+        imfx = mp.Queue(maxsize=1)
+
         self.osc_server = OSCServer(self.exit, params=params)
-
-        self.buffer = mp.Array(ctypes.c_float, 2048, lock=False)
-        self.stft = mp.Array(ctypes.c_float, 128, lock=False)
-        self.noise = mp.Queue(maxsize=1)
-        self.label = mp.Queue(maxsize=1)
-        self.image = mp.Queue(maxsize=1)
-        self.imfx = mp.Queue(maxsize=1)
-
-        self.jack_input = JACKInput(outgoing=self.buffer)
-        self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft, pause_event=self.pause_audio)
-        self.image_generator_2 = PGGAN(pause_event=self.pause_pggan, incoming=self.stft, noise=self.noise,
-                                       outgoing=self.image, params=params)
-        self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params, pause_event=self.pause_noise)
-        self.label_generator = LabelGenerator(outgoing=self.label, params=params)
-        self.image_generator = BIGGAN(stft_in=self.stft, noise_in=self.noise, label_in=self.label,
-                                      outgoing=self.image, params=params, pause_event=self.pause_biggan)
-        self.image_fx = ImageFX(incoming=self.image, outgoing=self.imfx, params=params)
-        self.image_display = InteropDisplay(incoming=self.imfx, exit_app=self.exit)
+        self.jack_input = JACKInput(outgoing=buffer)
+        self.audio_processor = AudioProcessor(incoming=buffer, outgoing=stft, rms=rms, pause_event=pause_audio)
+        self.image_generator_2 = PGGAN(pause_event=pause_pggan, incoming=stft, noise=noise,
+                                       outgoing=image, params=params)
+        self.noise_generator = NoiseGenerator(outgoing=noise, params=params, pause_event=pause_noise)
+        self.label_generator = LabelGenerator(outgoing=label, params=params)
+        self.image_generator = BIGGAN(stft_in=stft, noise_in=noise, label_in=label,
+                                      outgoing=image, params=params, pause_event=pause_biggan)
+        self.image_fx = ImageFX(incoming=image, outgoing=imfx, rms=rms, params=params)
+        self.image_display = InteropDisplay(incoming=imfx, exit_app=self.exit)
 
     def run(self):
         signal.signal(signal.SIGINT, signal.SIG_IGN)

@@ -51,6 +51,7 @@ class OSCServer(threading.Thread):
         self.dispatcher.map('/controls/label_speed', self.on_label_speed)
         self.dispatcher.map('/controls/noise_speed_std', self.on_noise_speed_std)
         self.dispatcher.map('/controls/pause_gans/*', self.on_pause_gans)
+        self.dispatcher.map('/controls/rms_influence', self.on_rms)
         self.dispatcher.map('/system/quit', self.quit)
         self.dispatcher.map('/system/pause', self.on_pause)
         self.dispatcher.set_default_handler(self.on_unknown_message)
@@ -100,6 +101,9 @@ class OSCServer(threading.Thread):
         else:
             for e in self.params['pause_all']:
                 e.clear()
+
+    def on_rms(self, addr, value):
+        self.params['rms_influence'].value = value
 
     def run(self):
         self.server.serve_forever()

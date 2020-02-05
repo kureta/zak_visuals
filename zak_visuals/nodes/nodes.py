@@ -81,10 +81,11 @@ label_groups = [bugs, instruments, mechanical, architectural]
 
 
 class AudioProcessor(BaseNode):
-    def __init__(self, incoming: mp.Array, outgoing: mp.Array, pause_event: mp.Event):
+    def __init__(self, incoming: mp.Array, outgoing: mp.Array, rms: mp.Value, pause_event: mp.Event):
         super().__init__(pause_event=pause_event)
         self.incoming = incoming
         self.outgoing = outgoing
+        self.rms = rms
         self.count = 0
         self.mean = 0
         self.std = 0
@@ -94,7 +95,10 @@ class AudioProcessor(BaseNode):
         buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming)
 
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
-        stft = np.abs(stft).squeeze(1).astype('float32')
+        stft = np.abs(stft)
+        rms = librosa.feature.rms(S=stft, frame_length=2048, hop_length=2048, center=False)
+        rms = rms.squeeze(1).astype('float32')
+        stft = stft.squeeze(1).astype('float32')
         # stft = 2 * stft / 2048
         # stft = stft**2
         for idx in range(1, 128):
@@ -110,6 +114,7 @@ class AudioProcessor(BaseNode):
         self.count = new_count
 
         self.outgoing[:] = (stft[:128] - self.mean) / max(self.epsilon, self.std)
+        self.rms.value = rms
 
 
 class PGGAN(BaseNode):
@@ -310,17 +315,24 @@ class BIGGAN(BaseNode):
 
 
 class ImageFX(BaseNode):
-    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, params: dict):
+    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, rms: mp.Value, params: dict):
         super().__init__()
+        self.rms = rms
         self.incoming = incoming
         self.outgoing = outgoing
         self.params = params
 
     def setup(self):
+        self.max_rms = 1e-9
         torch.autograd.set_grad_enabled(False)
 
     def task(self):
         image: torch.Tensor = self.incoming.get().clone()
+        rms = self.rms.value
+        if rms > self.max_rms:
+            self.max_rms = rms
+        rms /= self.max_rms
+        rms_influence = self.params['rms_influence'].value
 
         rgb = self.params['rgb'].value * 50
 
@@ -329,9 +341,11 @@ class ImageFX(BaseNode):
             shift = np.random.randn(2).astype('float32') * rgb
             cimage[:, :, idx] = cpi.shift(cimage[:, :, idx], shift, mode='mirror')
 
-        cimage = (cimage + 1.) / 2 * 255
-        cimage = cp.clip(cimage, 0, 255).astype(cp.uint8)
         nimage = cp.asnumpy(cimage)
+        nimage = (nimage + 1) / 2
+        nimage *= (rms - 1) * rms_influence + 1
+        nimage *= 255
+        nimage = np.clip(nimage, 0, 255).astype('uint8')
 
         self.outgoing.put(nimage)
 

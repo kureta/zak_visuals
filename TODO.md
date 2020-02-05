@@ -11,7 +11,7 @@
 - [x] Create OSCClient for relaying unhandled messages to Onur
 - [ ] Use random convolutions effect
 - [x] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
-- [ ] calculate rms
+- [x] calculate rms
 - [x] calculate mean and std for stft
 - [ ] control brightness
 - [ ] add shaders
@@ -23,3 +23,4 @@
 - [x] self monitor second window
 - [x] add pause/continue functionality
 - [ ] label TouchOSC interface elements
+- [ ] berlin sampling radius is too large
