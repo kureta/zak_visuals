@@ -165,8 +165,8 @@ class NoiseGenerator(BaseNode):
     def swap(self):
         self.buffers[:] = self.buffers[::-1]
 
-    def set_start(self, motion):
-        motion[0, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
+    def set_start(self, motion, previous_motion):
+        motion[0, :, :] = previous_motion[-1, :, :]
 
     def create_motion(self, motion):
         motion[-1, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
@@ -178,13 +178,13 @@ class NoiseGenerator(BaseNode):
         self.motion_1 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
         self.motion_2 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
         self.buffers = [self.motion_1, self.motion_2]
-        self.set_start(self.buffers[0])
+        self.set_start(self.buffers[0], self.buffers[1])
 
     def restart(self):
         self.sampling_radius = self.params['noise_std'].value * 12. + 0.01
         self.moving = True
         self.create_motion(self.buffers[0])
-        self.set_start(self.buffers[1])
+        self.set_start(self.buffers[1], self.buffers[0])
 
     def task(self):
         self.speed = int(self.params['noise_speed'].value * 31 + 1)
