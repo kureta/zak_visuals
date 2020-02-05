@@ -221,30 +221,24 @@ class LabelGenerator(BaseNode):
         name, label = list(label_group.items())[idx]
         return name, label
 
-    def set_start(self, args):
-        motion, endpoints = args
+    def set_start(self, motion):
         name, label = self.get_label()
         print(f'label: {name}')
         motion[0, :, :] = torch.zeros(1, 1000, device=DEVICE)
         motion[0, :, label] = 1.
-        endpoints[:, :, 0] = torch.zeros(1, 1000, device=DEVICE)
-        endpoints[:, label, 0] = 1.
 
-    def create_motion(self, args):
-        motion, endpoints = args
+    def create_motion(self, motion):
         name, label = self.get_label()
-        endpoints[:, :, 1] = torch.zeros(1, 1000, device=DEVICE)
-        endpoints[:, label, 1] = 1.
-        motion[:] = F.interpolate(endpoints, self.num_frames, mode='linear', align_corners=True).permute(2, 0, 1)
+        motion[-1, :, :] = torch.zeros(1, 1000, device=DEVICE)
+        motion[-1, :, label] = 1.
+        motion[:] = F.interpolate(torch.stack((motion[0], motion[-1])).permute(1, 2, 0),
+                                  self.num_frames, mode='linear', align_corners=True).permute(2, 0, 1)
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
-        self.endpoints_1 = torch.zeros(1, 1000, 2, device=DEVICE)
-        self.endpoints_2 = torch.zeros(1, 1000, 2, device=DEVICE)
         self.motion_1 = torch.zeros(self.num_frames, 1, 1000, device=DEVICE)
         self.motion_2 = torch.zeros(self.num_frames, 1, 1000, device=DEVICE)
-        self.buffers = [(self.motion_1, self.endpoints_1),
-                        (self.motion_2, self.endpoints_2)]
+        self.buffers = [self.motion_1, self.motion_2]
         self.set_start(self.buffers[0])
 
     def restart(self):
@@ -265,10 +259,10 @@ class LabelGenerator(BaseNode):
             self.restart()
 
         if self.moving:
-            self.outgoing.put(self.buffers[0][0][self.frame])
+            self.outgoing.put(self.buffers[0][self.frame])
             self.frame += self.speed
         else:
-            self.outgoing.put(self.buffers[0][0][0])
+            self.outgoing.put(self.buffers[0][0])
 
 
 class BIGGAN(BaseNode):
