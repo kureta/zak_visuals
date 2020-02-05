@@ -52,6 +52,7 @@ class OSCServer(threading.Thread):
         self.dispatcher.map('/controls/noise_speed_std', self.on_noise_speed_std)
         self.dispatcher.map('/controls/pause_gans/*', self.on_pause_gans)
         self.dispatcher.map('/system/quit', self.quit)
+        self.dispatcher.map('/system/pause', self.on_pause)
         self.dispatcher.set_default_handler(self.on_unknown_message)
 
     def quit(self, addr, value):
@@ -91,6 +92,14 @@ class OSCServer(threading.Thread):
             self.params['pause_gans'][idx].set()
         else:
             self.params['pause_gans'][idx].clear()
+
+    def on_pause(self, addr, value):
+        if value:
+            for e in self.params['pause_all']:
+                e.set()
+        else:
+            for e in self.params['pause_all']:
+                e.clear()
 
     def run(self):
         self.server.serve_forever()

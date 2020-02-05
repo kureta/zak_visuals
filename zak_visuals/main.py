@@ -18,6 +18,8 @@ class App:
 
         self.pause_pggan = mp.Event()
         self.pause_biggan = mp.Event()
+        self.pause_audio = mp.Event()
+        self.pause_noise = mp.Event()
 
         rgb = mp.Value(ctypes.c_float, lock=False)
         stft_scale = mp.Value(ctypes.c_float, lock=False)
@@ -37,6 +39,7 @@ class App:
             'noise_speed': noise_speed,
             'noise_std': noise_std,
             'pause_gans': [self.pause_pggan, self.pause_biggan],
+            'pause_all': [self.pause_audio, self.pause_noise],
         }
         rgb.value, stft_scale.value, animate_noise.value, randomize_label.value = 0., 0., 0., 0.
         label_speed.value, noise_speed.value, noise_std.value = 0., 0., 0.
@@ -51,10 +54,10 @@ class App:
         self.imfx = mp.Queue(maxsize=1)
 
         self.jack_input = JACKInput(outgoing=self.buffer)
-        self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft)
+        self.audio_processor = AudioProcessor(incoming=self.buffer, outgoing=self.stft, pause_event=self.pause_audio)
         self.image_generator_2 = PGGAN(pause_event=self.pause_pggan, incoming=self.stft, noise=self.noise,
                                        outgoing=self.image, params=params)
-        self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params)
+        self.noise_generator = NoiseGenerator(outgoing=self.noise, params=params, pause_event=self.pause_noise)
         self.label_generator = LabelGenerator(outgoing=self.label, params=params)
         self.image_generator = BIGGAN(stft_in=self.stft, noise_in=self.noise, label_in=self.label,
                                       outgoing=self.image, params=params, pause_event=self.pause_biggan)

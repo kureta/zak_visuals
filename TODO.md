@@ -20,4 +20,6 @@
 - [x] cycle through labels in current group
 - [x] provide current label feedback
 - [x] mixer onur touchosc interface
-- [ ] self monitor second window
+- [x] self monitor second window
+- [x] add pause/continue functionality
+- [ ] label TouchOSC interface elements

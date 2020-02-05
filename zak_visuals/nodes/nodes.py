@@ -81,8 +81,8 @@ label_groups = [bugs, instruments, mechanical, architectural]
 
 
 class AudioProcessor(BaseNode):
-    def __init__(self, incoming: mp.Array, outgoing: mp.Array):
-        super().__init__()
+    def __init__(self, incoming: mp.Array, outgoing: mp.Array, pause_event: mp.Event):
+        super().__init__(pause_event=pause_event)
         self.incoming = incoming
         self.outgoing = outgoing
         self.count = 0
@@ -151,8 +151,8 @@ class PGGAN(BaseNode):
 
 
 class NoiseGenerator(BaseNode):
-    def __init__(self, outgoing: mp.Queue, params: dict):
-        super().__init__()
+    def __init__(self, outgoing: mp.Queue, params: dict, pause_event: mp.Event):
+        super().__init__(pause_event=pause_event)
         self.outgoing = outgoing
         self.params = params
         self.num_frames = 128
