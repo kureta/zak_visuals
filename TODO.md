@@ -8,7 +8,13 @@
   - [x] interpolate between these two vectors, when animation reaches its final frame, stop.
   - [x] Put final frame into the first frame.
   - [x] Do the same for labels.
-- [ ] Create OSCClient for relaying unhandled messages to Onur
+- [x] Create OSCClient for relaying unhandled messages to Onur
 - [ ] Use random convolutions effect
 - [ ] Transform stfts from rayleigh to normal distribution
 - [ ] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
+- [ ] calculate rms
+- [ ] calculate mean and std for stft
+- [ ] control brightness
+- [ ] add shaders
+- [ ] add neural style
+- [ ] add transition
