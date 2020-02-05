@@ -1,7 +1,7 @@
 import threading
 
 import jack
-from pythonosc import dispatcher, osc_server
+from pythonosc import dispatcher, osc_server, udp_client
 from torch import multiprocessing as mp
 
 
@@ -37,6 +37,10 @@ class OSCServer(threading.Thread):
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
+        ip = '192.168.1.1'
+        port = 8000
+        self.client = udp_client.SimpleUDPClient(ip, port)
+
         self.params = params
 
         self.dispatcher.map('/controls/rgb', self.on_rgb_intensity)
@@ -53,9 +57,9 @@ class OSCServer(threading.Thread):
     def quit(self, addr, value):
         self.exit_app.set()
 
-    @staticmethod
-    def on_unknown_message(addr, *values):
+    def on_unknown_message(self, addr, *values):
         print(f'addr: {addr}', f'values: {values}')
+        self.client.send_message(addr, values)
 
     def on_rgb_intensity(self, addr, value):
         self.params['rgb'].value = value
