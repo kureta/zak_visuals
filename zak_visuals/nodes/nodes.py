@@ -342,25 +342,41 @@ class InteropDisplay(BaseNode):
         self.incoming = incoming
         self.exit_app = exit_app
 
+    @staticmethod
+    def create_screen():
+        quad = gloo.Program(vertex, fragment, count=4)
+        quad['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
+        quad['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
+        quad['texture'] = np.zeros((1920, 1080, 3), dtype='uint8')
+
+        return quad
+
     def setup(self):
         from glumpy import app
-        self.window = app.Window(width=1280, height=720, fullscreen=False, decoration=True)
+        self.window = app.Window(width=1920, height=1080, fullscreen=False, decoration=False)
+        self.window.event('on_draw')(self.on_draw)
 
-        self.quad = gloo.Program(vertex, fragment, count=4)
-        self.quad['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
-        self.quad['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
-        self.quad['texture'] = np.zeros((1920, 1080, 3), dtype='uint8')
+        self.preview = app.Window(width=1280, height=720, fullscreen=False, decoration=True)
+        self.preview.event('on_draw')(self.on_draw_preview)
+
+        self.main_screen = self.create_screen()
+        self.preview_screen = self.create_screen()
 
         self.backend = app.__backend__
         self.clock = app.__init__(backend=self.backend)
 
+    def on_draw(self, dt):
+        self.window.clear()
+        self.main_screen.draw(gl.GL_TRIANGLE_STRIP)
+
+    def on_draw_preview(self, dt):
+        self.window.set_title(f'{self.window.fps}')
+        self.window.clear()
+        self.preview_screen.draw(gl.GL_TRIANGLE_STRIP)
+
     def task(self):
         image = self.incoming.get()
-
-        self.window.set_title(f'{self.window.fps:.2f}')
-        self.quad['texture'] = image
-        self.window.clear()
-        self.quad.draw(gl.GL_TRIANGLE_STRIP)
-
+        self.main_screen['texture'] = image
+        self.preview_screen['texture'] = image
         if not self.backend.process(self.clock.tick()):
             self.exit_app.set()
