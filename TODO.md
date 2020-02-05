@@ -19,5 +19,5 @@
 - [ ] add transition
 - [x] cycle through labels in current group
 - [x] provide current label feedback
-- [ ] mixer onur touchosc interface
+- [x] mixer onur touchosc interface
 - [ ] self monitor second window
