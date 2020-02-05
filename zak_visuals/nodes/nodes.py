@@ -332,6 +332,7 @@ class ImageFX(BaseNode):
         if rms > self.max_rms:
             self.max_rms = rms
         rms /= self.max_rms
+        rms *= 2
         rms_influence = self.params['rms_influence'].value
 
         rgb = self.params['rgb'].value * 50

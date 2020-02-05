@@ -13,7 +13,7 @@
 - [x] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
 - [x] calculate rms
 - [x] calculate mean and std for stft
-- [ ] control brightness
+- [x] control brightness
 - [ ] add shaders
 - [ ] add neural style
 - [ ] add transition
