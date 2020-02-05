@@ -87,6 +87,10 @@ class AudioProcessor(BaseNode):
         super().__init__()
         self.incoming = incoming
         self.outgoing = outgoing
+        self.count = 0
+        self.mean = 0
+        self.std = 0
+        self.epsilon = 1e-9
 
     def task(self):
         buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming)
@@ -96,7 +100,17 @@ class AudioProcessor(BaseNode):
         stft = 2 * stft / 2048
         for idx in range(1, 128):
             stft[idx] = stft[idx * 8:(idx + 1) * 8].sum()
-        self.outgoing[:] = stft[:128]
+
+        new_count = self.count + 128
+        new_mean = (self.mean * self.count + stft[:128].sum()) / new_count
+        diff = stft[:128] - new_mean
+        new_std = np.sqrt((np.square(self.std) * self.count + np.dot(diff, diff)) / new_count)
+
+        self.mean = new_mean
+        self.std = new_std
+        self.count = new_count
+
+        self.outgoing[:] = (stft[:128] - self.mean) / max(self.epsilon, self.std)
 
 
 class PGGAN(BaseNode):
@@ -117,12 +131,13 @@ class PGGAN(BaseNode):
         noise = self.noise.get().unsqueeze(2).unsqueeze(3)
         stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
 
-        scale = self.params['stft_scale'].value * 250
+        scale = self.params['stft_scale'].value * 12
 
         features = np.zeros((1, 128, 1, 1), dtype='float32')
-        features[0, :, 0, 0] = stft * scale
+        features[0, :, 0, 0] = stft
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
+        features = hypersphere(features, scale)
         features = features + noise
 
         image = self.generator(features)
@@ -272,13 +287,14 @@ class BIGGAN(BaseNode):
         label = self.label_in.get()
         stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
-        scale = self.params['stft_scale'].value * 250
+        scale = self.params['stft_scale'].value * 12
 
         features = np.zeros((1, 128), dtype='float32')
-        features[0, :] = stft * scale
+        features[0, :] = stft
 
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
+        features = hypersphere(features, scale)
         features = features + noise
 
         image = self.generator(features, label, 0.4)

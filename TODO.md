@@ -10,10 +10,9 @@
   - [x] Do the same for labels.
 - [x] Create OSCClient for relaying unhandled messages to Onur
 - [ ] Use random convolutions effect
-- [ ] Transform stfts from rayleigh to normal distribution
 - [x] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
 - [ ] calculate rms
-- [ ] calculate mean and std for stft
+- [x] calculate mean and std for stft
 - [ ] control brightness
 - [ ] add shaders
 - [ ] add neural style
