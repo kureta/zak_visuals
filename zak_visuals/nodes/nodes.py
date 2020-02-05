@@ -1,5 +1,3 @@
-import random
-
 import cupy as cp
 import cupyx.scipy.ndimage as cpi
 import librosa
@@ -50,7 +48,7 @@ instruments = {
     'accordion': 401,
     'basson': 432,
     'cello': 486,
-    'trumpte': 513,
+    'trumpet': 513,
     'drum': 541,
     'flute': 558,
     'horn': 566,
@@ -97,7 +95,8 @@ class AudioProcessor(BaseNode):
 
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
-        stft = 2 * stft / 2048
+        # stft = 2 * stft / 2048
+        # stft = stft**2
         for idx in range(1, 128):
             stft[idx] = stft[idx * 8:(idx + 1) * 8].sum()
 
@@ -188,7 +187,7 @@ class NoiseGenerator(BaseNode):
         self.first = not self.first
 
     def task(self):
-        self.speed = int(self.params['noise_speed'].value * 63 + 1)
+        self.speed = int(self.params['noise_speed'].value * 31 + 1)
         if self.params['animate_noise'].value and self.frame >= self.num_frames:
             self.restart()
 
@@ -208,62 +207,68 @@ class LabelGenerator(BaseNode):
         self.params = params
         self.num_frames = 128
         self.speed = 1
-        self.frame = self.num_frames
-        self.first = True
+        self.frame = 0
+        self.idx = 0
+        self.moving = False
+
+    def swap(self):
+        self.buffers[:] = self.buffers[::-1]
+
+    def get_label(self):
+        category = self.params['label_group'].value
+        label_group = label_groups[category]
+        idx = self.idx % len(label_group)
+        name, label = list(label_group.items())[idx]
+        return name, label
+
+    def set_start(self, args):
+        motion, endpoints = args
+        name, label = self.get_label()
+        print(f'label: {name}')
+        motion[0, :, :] = torch.zeros(1, 1000, device=DEVICE)
+        motion[0, :, label] = 1.
+        endpoints[:, :, 0] = torch.zeros(1, 1000, device=DEVICE)
+        endpoints[:, label, 0] = 1.
+
+    def create_motion(self, args):
+        motion, endpoints = args
+        name, label = self.get_label()
+        endpoints[:, :, 1] = torch.zeros(1, 1000, device=DEVICE)
+        endpoints[:, label, 1] = 1.
+        motion[:] = F.interpolate(endpoints, self.num_frames, mode='linear', align_corners=True).permute(2, 0, 1)
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
-        self.label_group = label_groups[0]
-
-        self.labels_1 = random.sample(list(self.label_group.values()), 2)
         self.endpoints_1 = torch.zeros(1, 1000, 2, device=DEVICE)
-        self.endpoints_1[:, self.labels_1[0], 0] = 1.
-        self.endpoints_1[:, self.labels_1[1], 1] = 1.
-        self.animation_1 = torch.zeros(self.num_frames, 1, 1000, device=DEVICE)
-        self.animation_1[:] = F.interpolate(self.endpoints_1, (self.num_frames,),
-                                            mode='linear', align_corners=True).permute(2, 0, 1)
-
-        self.labels_2 = self.labels_1[:]
-        self.endpoints_2 = self.endpoints_1.clone()
-        self.animation_2 = self.animation_1.clone()
+        self.endpoints_2 = torch.zeros(1, 1000, 2, device=DEVICE)
+        self.motion_1 = torch.zeros(self.num_frames, 1, 1000, device=DEVICE)
+        self.motion_2 = torch.zeros(self.num_frames, 1, 1000, device=DEVICE)
+        self.buffers = [(self.motion_1, self.endpoints_1),
+                        (self.motion_2, self.endpoints_2)]
+        self.set_start(self.buffers[0])
 
     def restart(self):
-        self.frame = 0
-        category = self.params['label_group'].value
-        self.label_group = label_groups[category]
-
-        if self.first:
-            self.labels_2[0] = self.labels_1[1]
-            self.labels_2[1] = random.choice(list(self.label_group.values()))
-            self.endpoints_2 = torch.zeros(1, 1000, 2, device=DEVICE)
-            self.endpoints_2[:, self.labels_2[0], 0] = 1.
-            self.endpoints_2[:, self.labels_2[1], 1] = 1.
-            self.animation_2[:] = F.interpolate(self.endpoints_2, (self.num_frames,),
-                                                mode='linear', align_corners=True).permute(2, 0, 1)
-        else:
-            self.labels_1[0] = self.labels_2[1]
-            self.labels_1[1] = random.choice(list(self.label_group.values()))
-            self.endpoints_1 = torch.zeros(1, 1000, 2, device=DEVICE)
-            self.endpoints_1[:, self.labels_1[0], 0] = 1.
-            self.endpoints_1[:, self.labels_1[1], 1] = 1.
-            self.animation_1[:] = F.interpolate(self.endpoints_1, (self.num_frames,),
-                                                mode='linear', align_corners=True).permute(2, 0, 1)
-
-        self.first = not self.first
+        self.idx += 1
+        self.moving = True
+        self.create_motion(self.buffers[0])
+        self.set_start(self.buffers[1])
 
     def task(self):
         self.speed = int(self.params['label_speed'].value * 31 + 1)
-        if self.params['randomize_label'].value and self.frame >= self.num_frames:
-            self.restart()
-            print('Label changed.')
-
-        current = self.animation_1 if self.first else self.animation_2
 
         if self.frame >= self.num_frames:
-            self.outgoing.put(current[-1])
-        else:
-            self.outgoing.put(current[self.frame])
+            self.moving = False
+            self.swap()
+            self.frame = 0
+
+        if self.params['randomize_label'].value and not self.moving:
+            self.restart()
+
+        if self.moving:
+            self.outgoing.put(self.buffers[0][0][self.frame])
             self.frame += self.speed
+        else:
+            self.outgoing.put(self.buffers[0][0][0])
 
 
 class BIGGAN(BaseNode):

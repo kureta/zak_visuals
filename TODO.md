@@ -17,3 +17,5 @@
 - [ ] add shaders
 - [ ] add neural style
 - [ ] add transition
+- [x] cycle through labels in current group
+- [x] provide current label feedback
