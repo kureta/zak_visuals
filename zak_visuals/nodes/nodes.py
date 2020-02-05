@@ -94,8 +94,9 @@ class AudioProcessor(BaseNode):
         stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
-        stft = stft[0:128]
-        self.outgoing[:] = stft
+        for idx in range(1, 128):
+            stft[idx] = stft[idx * 8:(idx + 1) * 8].sum()
+        self.outgoing[:] = stft[:128]
 
 
 class PGGAN(BaseNode):
