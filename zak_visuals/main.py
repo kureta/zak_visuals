@@ -2,7 +2,6 @@ import ctypes
 import logging
 import signal
 
-from multiprocessing.sharedctypes import RawValue, RawArray
 from torch import multiprocessing as mp
 
 from zak_visuals.nodes import AudioProcessor, BIGGAN, ImageFX, InteropDisplay, NoiseGenerator, LabelGenerator, PGGAN
@@ -20,14 +19,14 @@ class App:
         self.pause_pggan = mp.Event()
         self.pause_biggan = mp.Event()
 
-        rgb = RawValue(ctypes.c_float)
-        stft_scale = RawValue(ctypes.c_float)
-        animate_noise = RawValue(ctypes.c_float)
-        randomize_label = RawValue(ctypes.c_float)
-        label_group = RawValue(ctypes.c_uint8)
-        label_speed = RawValue(ctypes.c_float)
-        noise_speed = RawValue(ctypes.c_float)
-        noise_std = RawValue(ctypes.c_float)
+        rgb = mp.Value(ctypes.c_float, lock=False)
+        stft_scale = mp.Value(ctypes.c_float, lock=False)
+        animate_noise = mp.Value(ctypes.c_float, lock=False)
+        randomize_label = mp.Value(ctypes.c_float, lock=False)
+        label_group = mp.Value(ctypes.c_uint8, lock=False)
+        label_speed = mp.Value(ctypes.c_float, lock=False)
+        noise_speed = mp.Value(ctypes.c_float, lock=False)
+        noise_std = mp.Value(ctypes.c_float, lock=False)
         params = {
             'rgb': rgb,
             'stft_scale': stft_scale,
@@ -44,8 +43,8 @@ class App:
         label_group.value = 0
         self.osc_server = OSCServer(self.exit, params=params)
 
-        self.buffer = RawArray(ctypes.c_float, 2048)
-        self.stft = RawArray(ctypes.c_float, 128)
+        self.buffer = mp.Array(ctypes.c_float, 2048, lock=False)
+        self.stft = mp.Array(ctypes.c_float, 128, lock=False)
         self.noise = mp.Queue(maxsize=1)
         self.label = mp.Queue(maxsize=1)
         self.image = mp.Queue(maxsize=1)
