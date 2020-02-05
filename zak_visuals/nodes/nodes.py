@@ -158,46 +158,50 @@ class NoiseGenerator(BaseNode):
         self.num_frames = 128
         self.speed = 1
         self.sampling_radius = 0.01
-        self.frame = self.num_frames
-        self.first = True
+        self.frame = 0
+        self.idx = 0
+        self.moving = False
+
+    def swap(self):
+        self.buffers[:] = self.buffers[::-1]
+
+    def set_start(self, motion):
+        motion[0, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
+
+    def create_motion(self, motion):
+        motion[-1, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
+        motion[:] = F.interpolate(torch.stack((motion[0], motion[-1])).permute(1, 2, 0),
+                                  self.num_frames, mode='linear', align_corners=True).permute(2, 0, 1)
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
-        self.endpoints_1 = hypersphere(torch.randn(1, 128, 2, device=DEVICE), radius=self.sampling_radius)
-        self.animation_1 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
-        self.animation_1 = F.interpolate(self.endpoints_1, (self.num_frames,),
-                                         mode='linear', align_corners=True).permute(2, 0, 1)
-        self.endpoints_2 = self.endpoints_1.clone()
-        self.animation_2 = self.animation_1.clone()
+        self.motion_1 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
+        self.motion_2 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
+        self.buffers = [self.motion_1, self.motion_2]
+        self.set_start(self.buffers[0])
 
     def restart(self):
-        self.frame = 0
         self.sampling_radius = self.params['noise_std'].value * 12. + 0.01
-        if self.first:
-            self.endpoints_2[:, :, 0] = self.endpoints_1[:, :, 1]
-            self.endpoints_2[:, :, 1] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
-            self.animation_2[:] = F.interpolate(self.endpoints_2, (self.num_frames,),
-                                                mode='linear', align_corners=True).permute(2, 0, 1)
-        else:
-            self.endpoints_1[:, :, 0] = self.endpoints_2[:, :, 1]
-            self.endpoints_1[:, :, 1] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
-            self.animation_1[:] = F.interpolate(self.endpoints_1, (self.num_frames,),
-                                                mode='linear', align_corners=True).permute(2, 0, 1)
-
-        self.first = not self.first
+        self.moving = True
+        self.create_motion(self.buffers[0])
+        self.set_start(self.buffers[1])
 
     def task(self):
         self.speed = int(self.params['noise_speed'].value * 31 + 1)
-        if self.params['animate_noise'].value and self.frame >= self.num_frames:
-            self.restart()
-
-        current = self.animation_1 if self.first else self.animation_2
 
         if self.frame >= self.num_frames:
-            self.outgoing.put(current[-1])
-        else:
-            self.outgoing.put(current[self.frame])
+            self.moving = False
+            self.swap()
+            self.frame = 0
+
+        if self.params['animate_noise'].value and not self.moving:
+            self.restart()
+
+        if self.moving:
+            self.outgoing.put(self.buffers[0][self.frame])
             self.frame += self.speed
+        else:
+            self.outgoing.put(self.buffers[0][0])
 
 
 class LabelGenerator(BaseNode):
