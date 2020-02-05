@@ -16,7 +16,7 @@ class JACKInput(threading.Thread):
 
     def read_buffer(self, frames: int):
         assert frames == self.client.blocksize
-        self.buffer[:] = self.inport.get_array()[:]
+        self.buffer[:] = self.inport.get_array()
 
     def run(self):
         sysport: jack.Port = self.client.get_ports(is_audio=True, is_output=True, is_physical=True)[0]

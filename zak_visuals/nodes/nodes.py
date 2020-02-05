@@ -95,7 +95,7 @@ class AudioProcessor(BaseNode):
         stft = np.abs(stft).squeeze(1).astype('float32')
         stft = 2 * stft / 2048
         stft = stft[0:128]
-        self.outgoing[:] = stft[:]
+        self.outgoing[:] = stft
 
 
 class PGGAN(BaseNode):
