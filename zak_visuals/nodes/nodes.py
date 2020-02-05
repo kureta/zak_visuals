@@ -165,26 +165,26 @@ class NoiseGenerator(BaseNode):
     def swap(self):
         self.buffers[:] = self.buffers[::-1]
 
-    def set_start(self, motion):
-        motion[0, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
+    def set_start(self):
+        self.buffers[1][0, :, :] = self.buffers[0][-1, :, :]
 
-    def create_motion(self, motion):
-        motion[-1, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
-        motion[:] = F.interpolate(torch.stack((motion[0], motion[-1])).permute(1, 2, 0),
-                                  self.num_frames, mode='linear', align_corners=True).permute(2, 0, 1)
+    def create_motion(self):
+        self.buffers[0][-1, :, :] = hypersphere(torch.randn(1, 128, device=DEVICE), radius=self.sampling_radius)
+        self.buffers[0][:] = F.interpolate(torch.stack((self.buffers[0][0], self.buffers[0][-1])).permute(1, 2, 0),
+                                           self.num_frames, mode='linear', align_corners=True).permute(2, 0, 1)
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
         self.motion_1 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
         self.motion_2 = torch.zeros(self.num_frames, 1, 128, device=DEVICE)
         self.buffers = [self.motion_1, self.motion_2]
-        self.set_start(self.buffers[0])
+        self.set_start()
 
     def restart(self):
         self.sampling_radius = self.params['noise_std'].value * 12. + 0.01
         self.moving = True
-        self.create_motion(self.buffers[0])
-        self.set_start(self.buffers[1])
+        self.create_motion()
+        self.set_start()
 
     def task(self):
         self.speed = int(self.params['noise_speed'].value * 31 + 1)
