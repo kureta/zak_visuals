@@ -189,7 +189,7 @@ class NoiseGenerator(BaseNode):
     def task(self):
         self.speed = int(self.params['noise_speed'].value * 31 + 1)
 
-        if self.frame >= self.num_frames:
+        if self.frame >= self.num_frames - 1:
             self.moving = False
             self.swap()
             self.frame = 0
