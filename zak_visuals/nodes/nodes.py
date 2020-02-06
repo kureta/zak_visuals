@@ -147,6 +147,9 @@ class AudioProcessor(BaseNode):
         self.count = 0
         self.mean = 0
         self.std = 0
+        self.rms_count = 0
+        self.rms_mean = 0
+        self.rms_std = 0
         self.epsilon = 1e-9
 
     def task(self):
@@ -171,8 +174,17 @@ class AudioProcessor(BaseNode):
         self.std = new_std
         self.count = new_count
 
+        new_count = self.rms_count + 1
+        new_mean = (self.rms_mean * self.rms_count + rms) / new_count
+        diff = rms - new_mean
+        new_std = np.sqrt((np.square(self.rms_std) * self.rms_count + np.dot(diff, diff)) / new_count)
+
+        self.rms_mean = new_mean
+        self.rms_std = new_std
+        self.rms_count = new_count
+
         self.outgoing[:] = (stft[:128] - self.mean) / max(self.epsilon, self.std)
-        self.rms.value = rms
+        self.rms.value = (rms - self.rms_mean) / max(self.epsilon, self.rms_std)
 
 
 class PGGAN(BaseNode):
@@ -381,16 +393,11 @@ class ImageFX(BaseNode):
         self.params = params
 
     def setup(self):
-        self.max_rms = 1e-9
         torch.autograd.set_grad_enabled(False)
 
     def task(self):
         image: torch.Tensor = self.incoming.get().clone()
-        rms = self.rms.value
-        if rms > self.max_rms:
-            self.max_rms = rms
-        rms /= self.max_rms
-        rms *= 2
+        rms = (self.rms.value + 2) / 4
         rms_influence = self.params['rms_influence'].value
 
         rgb = self.params['rgb'].value * 50
