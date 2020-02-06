@@ -9,20 +9,20 @@
   - [x] Put final frame into the first frame.
   - [x] Do the same for labels.
 - [x] Create OSCClient for relaying unhandled messages to Onur
-- [ ] Use random convolutions effect
+- [ ] ~~Use random convolutions effect~~
 - [x] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
 - [x] calculate rms
 - [x] calculate mean and std for stft
 - [ ] control brightness
 - [ ] add shaders
-- [ ] add neural style
-- [ ] add transition
+- [ ] ~~add neural style~~
+- [ ] ~~add transition~~
 - [x] cycle through labels in current group
 - [x] provide current label feedback
 - [x] mixer onur touchosc interface
 - [x] self monitor second window
 - [x] add pause/continue functionality
 - [ ] label TouchOSC interface elements
-- [ ] berlin sampling radius is too large
+- [x] berlin sampling radius is too large
 - [x] curate label lists
 - [ ] smooth low frame rate
