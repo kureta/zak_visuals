@@ -37,7 +37,7 @@ class OSCServer(threading.Thread):
         self.dispatcher = dispatcher.Dispatcher()
         self.server = osc_server.ThreadingOSCUDPServer(('0.0.0.0', 8000), self.dispatcher)
 
-        ip = '192.168.1.1'
+        ip = '172.16.31.191'
         port = 8000
         self.client = udp_client.SimpleUDPClient(ip, port)
 
@@ -60,7 +60,7 @@ class OSCServer(threading.Thread):
         self.exit_app.set()
 
     def on_unknown_message(self, addr, *values):
-        print(f'addr: {addr}', f'values: {values}')
+        # print(f'addr: {addr}', f'values: {values}')
         self.client.send_message(addr, values)
 
     def on_rgb_intensity(self, addr, value):

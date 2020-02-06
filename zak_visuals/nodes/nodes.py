@@ -135,7 +135,7 @@ class PGGAN(BaseNode):
         noise = self.noise.get().unsqueeze(2).unsqueeze(3)
         stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
 
-        scale = self.params['stft_scale'].value * 12
+        scale = self.params['stft_scale'].value * 1.2
 
         features = np.zeros((1, 128, 1, 1), dtype='float32')
         features[0, :, 0, 0] = stft
@@ -284,7 +284,7 @@ class BIGGAN(BaseNode):
         self.outgoing = outgoing
         self.params = params
 
-        self.generator = BigGAN.from_pretrained('biggan-deep-512')
+        self.generator = BigGAN.from_pretrained('/home/kureta/Documents/repos/zak_visuals/biggan')
         self.generator.to(DEVICE)
 
     def setup(self):

@@ -13,7 +13,7 @@
 - [x] discard dc offset and sum gorups of 8 to reduce stft dimension from 1025 to 128
 - [x] calculate rms
 - [x] calculate mean and std for stft
-- [x] control brightness
+- [ ] control brightness
 - [ ] add shaders
 - [ ] add neural style
 - [ ] add transition
@@ -24,3 +24,5 @@
 - [x] add pause/continue functionality
 - [ ] label TouchOSC interface elements
 - [ ] berlin sampling radius is too large
+- [ ] curate label lists
+- [ ] smooth low frame rate
