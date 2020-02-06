@@ -450,8 +450,8 @@ class InteropDisplay(BaseNode):
         self.main_screen.draw(gl.GL_TRIANGLE_STRIP)
 
     def on_draw_preview(self, dt):
-        self.window.set_title(f'{self.window.fps}')
-        self.window.clear()
+        self.preview.set_title(f'{self.preview.fps}')
+        self.preview.clear()
         self.preview_screen.draw(gl.GL_TRIANGLE_STRIP)
 
     def task(self):
