@@ -25,4 +25,4 @@
 - [ ] label TouchOSC interface elements
 - [x] berlin sampling radius is too large
 - [x] curate label lists
-- [ ] smooth low frame rate
+- [ ] ~~smooth low frame rate~~
