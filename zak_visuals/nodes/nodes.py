@@ -46,7 +46,7 @@ faces = {
     'cello': 486,
     'violin': 889,
     'harp': 594,
-    'acoustic_guitar':402,
+    'acoustic_guitar': 402,
     'electric_guitar': 546,
     'cornet': 513,
     'french_horn': 566,
@@ -111,6 +111,13 @@ office = {
 
 }
 whispers = {
+    'web': 815,
+    'barn_spider': 73,
+    'black_and_gold_garden_spider': 72,
+    'black_widow': 75,
+    'garden_spider': 74,
+    'tarantula': 76,
+    'wolf_spider': 77,
     'ground_beetle': 302,
     'leaf_beetle': 304,
     'long-horned_beetle': 303,
