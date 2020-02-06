@@ -35,49 +35,107 @@ fragment = """
     }
 """
 
-bugs = {
-    'fly': 308,
-    'ant': 310,
-    'roach': 314,
-    'mantis': 315,
-    'cicada': 316,
-    'web': 815,
-}
-
-instruments = {
+faces = {
     'accordion': 401,
-    'basson': 432,
-    'cello': 486,
-    'trumpet': 513,
     'drum': 541,
-    'flute': 558,
-    'horn': 566,
-    'grand piano': 579,
-    'harp': 594,
-    'trombone': 875,
-    'upright piano': 881,
+    'maraca': 641,
+    'marimba': 642,
+    'steel_drum': 822,
+    'banjo': 420,
+    'ocarina': 684,
+    'cello': 486,
     'violin': 889,
+    'harp': 594,
+    'acoustic_guitar':402,
+    'electric_guitar': 546,
+    'cornet': 513,
+    'french_horn': 566,
+    'trombone': 875,
+    'harmonica': 593,
+    'panpipe': 699,
+    'flute': 558,
+    'bassoon': 432,
+    'oboe': 683,
+    'sax': 776,
 }
-
 mechanical = {
-    'clock': 409,
     'barometer': 426,
-    'dial phone': 528,
-    'disk brake': 535,
-    'compass': 635,
+    'scale': 778,
+    'rule': 769,
+    'odometer': 685,
+    'sundial': 835,
+    'analog_clock': 409,
+    'digital_clock': 530,
+    'wall_clock': 892,
+    'hourglass': 604,
+    'parking_meter': 704,
+    'stopwatch': 826,
+    'digital_watch': 531,
 }
-
-architectural = {
+architecture = {
     'altar': 406,
-    'lighthouse': 437,
-    'birdhouse': 448,
+    'triumphal_arch': 873,
+    'steel_arch_bridge': 821,
+    'suspension_bridge': 839,
+    'library': 624,
+    'planetarium': 727,
+    'obelisk': 682,
+    'totem_pole': 863,
+    'dock': 536,
+    'megalith': 649,
+    'beacon': 437,
     'church': 497,
-    'dome': 538,
     'mosque': 668,
+    'castle': 483,
+    'dam': 525,
+    'palace': 698,
+    'monastery': 663,
     'prison': 743,
+    'typewriter': 878,
+}
+office = {
+    'abacus': 398,
+    'trash can': 412,
+    'bookcase': 453,
+    'bow-tie': 457,
+    'cellphone': 487,
+    'coffee mug': 504,
+    'coffee pot': 505,
+    'keyboard': 508,
+    'desk': 526,
+    'dial phone': 528,
+    'envelope': 549,
+    'file cabinet': 553,
+    'fountain pen': 563,
+    'tie': 906,
+
+}
+whispers = {
+    'ground_beetle': 302,
+    'leaf_beetle': 304,
+    'long-horned_beetle': 303,
+    'tiger_beetle': 300,
+    'weevil': 307,
+    'cockroach': 314,
+    'mantis': 315,
+    'fly': 308,
+    'cicada': 316,
+    'leafhopper': 317,
+    'ant': 310,
+    'lacewing': 318,
+    'damselfly': 320,
+    'dragonfly': 319,
+    'cricket': 312,
+    'grasshopper': 311,
+    'walking_stick': 313,
+    'lycaenid': 326,
+    'ringlet': 322,
+    'dung_beetle': 305,
+    'rhinoceros_beetle': 306,
+    'admiral': 321,
 }
 
-label_groups = [bugs, instruments, mechanical, architectural]
+label_groups = [faces, mechanical, architecture, office, whispers]
 
 
 class AudioProcessor(BaseNode):

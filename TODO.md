@@ -24,5 +24,5 @@
 - [x] add pause/continue functionality
 - [ ] label TouchOSC interface elements
 - [ ] berlin sampling radius is too large
-- [ ] curate label lists
+- [x] curate label lists
 - [ ] smooth low frame rate
