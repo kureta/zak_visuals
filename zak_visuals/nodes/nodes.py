@@ -60,38 +60,37 @@ faces = {
 }
 mechanical = {
     'barometer': 426,
-    'scale': 778,
-    'rule': 769,
     'odometer': 685,
+    'hourglass': 604,
     'sundial': 835,
     'analog_clock': 409,
-    'digital_clock': 530,
     'wall_clock': 892,
-    'hourglass': 604,
+    'digital_clock': 530,
     'parking_meter': 704,
+    'scale': 778,
     'stopwatch': 826,
+    'rule': 769,
     'digital_watch': 531,
 }
 architecture = {
     'altar': 406,
+    'prison': 743,
+    'library': 624,
     'triumphal_arch': 873,
     'steel_arch_bridge': 821,
     'suspension_bridge': 839,
-    'library': 624,
+    'dam': 525,
     'planetarium': 727,
+    'dock': 536,
+    'beacon': 437,
     'obelisk': 682,
     'totem_pole': 863,
-    'dock': 536,
     'megalith': 649,
-    'beacon': 437,
     'church': 497,
     'mosque': 668,
     'castle': 483,
-    'dam': 525,
-    'palace': 698,
     'monastery': 663,
-    'prison': 743,
-    'typewriter': 878,
+    'palace': 698,
 }
 office = {
     'abacus': 398,
@@ -108,7 +107,7 @@ office = {
     'file cabinet': 553,
     'fountain pen': 563,
     'tie': 906,
-
+    'typewriter': 878,
 }
 whispers = {
     'web': 815,
@@ -440,7 +439,7 @@ class InteropDisplay(BaseNode):
 
     def setup(self):
         from glumpy import app
-        self.window = app.Window(width=1920, height=1080, fullscreen=False, decoration=False)
+        self.window = app.Window(width=1920, height=1080, fullscreen=False, decoration=False, vsync=True)
         self.window.event('on_draw')(self.on_draw)
 
         self.preview = app.Window(width=1280, height=720, fullscreen=False, decoration=True)
