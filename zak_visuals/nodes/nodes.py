@@ -195,7 +195,7 @@ class PGGAN(BaseNode):
         self.outgoing = outgoing
         self.params = params
         checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
-        self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE)
+        self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE).eval()
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
@@ -357,7 +357,7 @@ class BIGGAN(BaseNode):
         self.outgoing = outgoing
         self.params = params
 
-        self.generator = BigGAN.from_pretrained('/home/kureta/Documents/repos/zak_visuals/biggan')
+        self.generator = BigGAN.from_pretrained('/home/kureta/Documents/repos/zak_visuals/biggan').eval()
         self.generator.to(DEVICE)
 
     def setup(self):
