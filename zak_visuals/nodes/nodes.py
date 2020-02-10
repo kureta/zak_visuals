@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from glumpy import gloo, gl
 from pytorch_pretrained_biggan import BigGAN
+from scipy.stats import norm
 from torch import multiprocessing as mp
 from torch.nn import functional as F
 
@@ -400,7 +401,8 @@ class ImageFX(BaseNode):
 
     def task(self):
         image: torch.Tensor = self.incoming.get().clone()
-        rms = (self.rms.value + 2) / 4
+        # rms = (self.rms.value + 2) / 4
+        rms = norm.cdf(self.rms.value)
         rms_influence = self.params['rms_influence'].value
 
         rgb = self.params['rgb'].value * 50
