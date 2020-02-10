@@ -295,12 +295,16 @@ class LabelGenerator(BaseNode):
         self.frame = 0
         self.idx = 0
         self.moving = False
+        self.previous_category = 0
 
     def swap(self):
         self.buffers[:] = self.buffers[::-1]
 
     def get_label(self):
         category = self.params['label_group'].value
+        if category != self.previous_category:
+            self.idx = 0
+            self.previous_category = category
         label_group = label_groups[category]
         idx = self.idx % len(label_group)
         name, label = list(label_group.items())[idx]
