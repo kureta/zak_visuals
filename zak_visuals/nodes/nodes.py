@@ -152,10 +152,11 @@ class AudioProcessor(BaseNode):
         self.rms_std = 0
         self.epsilon = 1e-9
 
-    def task(self):
-        buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming)
+    def setup(self):
+        self.buffer = np.ndarray((2048,), dtype='float32', buffer=self.incoming)
 
-        stft = librosa.stft(buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
+    def task(self):
+        stft = librosa.stft(self.buffer, n_fft=2048, hop_length=2048, center=False, window='boxcar')
         stft = np.abs(stft)
         rms = librosa.feature.rms(S=stft, frame_length=2048, hop_length=2048, center=False)
         rms = rms.squeeze(1).astype('float32')
@@ -200,15 +201,15 @@ class PGGAN(BaseNode):
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
+        self.stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
 
     def task(self):
         noise = self.noise.get().unsqueeze(2).unsqueeze(3)
-        stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
 
         scale = self.params['stft_scale'].value * 1.2
 
         features = np.zeros((1, 128, 1, 1), dtype='float32')
-        features[0, :, 0, 0] = stft
+        features[0, :, 0, 0] = self.stft
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
         features = hypersphere(features, scale)
@@ -363,16 +364,16 @@ class BIGGAN(BaseNode):
 
     def setup(self):
         torch.autograd.set_grad_enabled(False)
+        self.stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
     def task(self):
         noise = self.noise_in.get()
         label = self.label_in.get()
-        stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
         scale = self.params['stft_scale'].value * 12
 
         features = np.zeros((1, 128), dtype='float32')
-        features[0, :] = stft
+        features[0, :] = self.stft
 
         features = torch.from_numpy(features)
         features = features.to(DEVICE)
