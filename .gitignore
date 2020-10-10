@@ -8,3 +8,4 @@ biggan/
 *.npy
 .python-version
 misc/
+venv/
