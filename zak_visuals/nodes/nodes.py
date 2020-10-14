@@ -446,6 +446,10 @@ def create_shared_texture(w, h, c=4,
     return tex, cuda_buffer
 
 
+# TODO: Clean-up code
+# TODO: Upgrade shader language to version 4.6.0
+# TODO: Add back preview window using shared context
+# FIXME: image size and/or shape is wrong
 class InteropDisplay(BaseNode):
     def __init__(self, incoming: mp.Queue, exit_app: mp.Event):
         super().__init__()
