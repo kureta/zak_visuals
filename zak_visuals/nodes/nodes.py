@@ -449,7 +449,6 @@ def create_shared_texture(w, h, c=4,
 # TODO: Clean-up code
 # TODO: Upgrade shader language to version 4.6.0
 # TODO: Add back preview window using shared context
-# FIXME: image size and/or shape is wrong
 class InteropDisplay(BaseNode):
     def __init__(self, incoming: mp.Queue, exit_app: mp.Event):
         super().__init__()
@@ -464,7 +463,7 @@ class InteropDisplay(BaseNode):
         # TODO: Even though we don't use the `state` variable, shared texture creation
         #       fails if we don't initialize it here. Why?
         state = torch.zeros((1, 3, 1920, 1080), dtype=torch.float32, device='cuda')
-        tex, self.cuda_buffer = create_shared_texture(1920, 1080, 3)
+        tex, self.cuda_buffer = create_shared_texture(1920, 1080, 4)
         self.main_screen = gloo.Program(vertex, fragment, count=4)
         self.main_screen['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
         self.main_screen['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
@@ -480,7 +479,12 @@ class InteropDisplay(BaseNode):
 
     def task(self):
         tensor: torch.Tensor = self.incoming.get().clone()
-        tensor = (255 * tensor).byte().contiguous()  # convert to ByteTensor
+        tensor = (tensor + 1) / 2
+        tensor = torch.cat((tensor, tensor[:, :, :1]), dim=2)  # add the alpha channel
+        tensor[:, :, 3] = 1.  # set alpha
+        tensor *= 255
+        tensor = torch.clip(tensor, 0, 255)
+        tensor = tensor.byte().contiguous()  # convert to ByteTensor
 
         self.window.activate()
         tex = self.main_screen['texture']
