@@ -64,8 +64,8 @@ class App:
         self.label_generator = LabelGenerator(outgoing=label, params=params)
         self.image_generator = BIGGAN(stft_in=stft, noise_in=noise, label_in=label,
                                       outgoing=image, params=params, pause_event=pause_biggan)
-        self.image_fx = ImageFX(incoming=image, outgoing=imfx, rms=rms, params=params)
-        self.image_display = InteropDisplay(incoming=imfx, exit_app=self.exit)
+        # self.image_fx = ImageFX(incoming=image, outgoing=imfx, rms=rms, params=params)
+        self.image_display = InteropDisplay(incoming=image, exit_app=self.exit)
 
     def run(self):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -78,7 +78,7 @@ class App:
         self.label_generator.start()
         self.image_generator_2.start()
         self.image_generator.start()
-        self.image_fx.start()
+        # self.image_fx.start()
         self.image_display.start()
 
         signal.signal(signal.SIGINT, self.on_keyboard_interrupt)
@@ -92,7 +92,7 @@ class App:
         self.label_generator.kill()
         self.image_generator.kill()
         self.image_generator_2.kill()
-        self.image_fx.kill()
+        # self.image_fx.kill()
         self.image_display.kill()
 
         self.jack_input.join()

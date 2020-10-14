@@ -1,9 +1,13 @@
+from contextlib import contextmanager
+
 import cupy as cp
 import cupyx.scipy.ndimage as cpi
 import librosa
 import numpy as np
+import pycuda.driver
 import torch
 from glumpy import gloo, gl
+from pycuda.gl import graphics_map_flags
 from pytorch_pretrained_biggan import BigGAN
 from scipy.stats import norm
 from torch import multiprocessing as mp
@@ -19,7 +23,7 @@ vertex = """
     uniform float scale;
     attribute vec2 position;
     attribute vec2 texcoord;
-    varying vec2 v_texcoord   ;
+    varying vec2 v_texcoord;
     void main()
     {
         gl_Position = vec4(position, 0.0, 1.0);
@@ -422,47 +426,66 @@ class ImageFX(BaseNode):
         self.outgoing.put(nimage)
 
 
+@contextmanager
+def cuda_activate(img):
+    """Context manager simplifying use of pycuda.gl.RegisteredImage"""
+    mapping = img.map()
+    yield mapping.array(0, 0)
+    mapping.unmap()
+
+
+def create_shared_texture(w, h, c=4,
+                          map_flags=graphics_map_flags.WRITE_DISCARD,
+                          dtype=np.uint8):
+    """Create and return a Texture2D with gloo and pycuda views."""
+    tex = np.zeros((h, w, c), dtype).view(gloo.Texture2D)
+    tex.activate()  # force gloo to create on GPU
+    tex.deactivate()
+    cuda_buffer = pycuda.gl.RegisteredImage(
+        int(tex.handle), tex.target, map_flags)
+    return tex, cuda_buffer
+
+
 class InteropDisplay(BaseNode):
     def __init__(self, incoming: mp.Queue, exit_app: mp.Event):
         super().__init__()
         self.incoming = incoming
         self.exit_app = exit_app
 
-    @staticmethod
-    def create_screen():
-        quad = gloo.Program(vertex, fragment, count=4)
-        quad['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
-        quad['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
-        quad['texture'] = np.zeros((1920, 1080, 3), dtype='uint8')
-
-        return quad
-
     def setup(self):
         from glumpy import app
+        app.use('glfw')
         self.window = app.Window(width=1920, height=1080, fullscreen=False, decoration=False, vsync=True)
-        self.window.event('on_draw')(self.on_draw)
-
-        self.preview = app.Window(width=1280, height=720, fullscreen=False, decoration=True)
-        self.preview.event('on_draw')(self.on_draw_preview)
-
-        self.main_screen = self.create_screen()
-        self.preview_screen = self.create_screen()
+        import pycuda.gl.autoinit  # noqa
+        self.state = torch.zeros((1, 3, 1920, 1080), dtype=torch.float16, device='cuda')
+        tex, self.cuda_buffer = create_shared_texture(1920, 1080, 3)
+        self.main_screen = gloo.Program(vertex, fragment, count=4)
+        self.main_screen['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
+        self.main_screen['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
+        self.main_screen['texture'] = tex
 
         self.backend = app.__backend__
         self.clock = app.__init__(backend=self.backend)
+        self.window.event('on_draw')(self.on_draw)
 
     def on_draw(self, dt):
         self.window.clear()
         self.main_screen.draw(gl.GL_TRIANGLE_STRIP)
 
-    def on_draw_preview(self, dt):
-        self.preview.set_title(f'{self.preview.fps}')
-        self.preview.clear()
-        self.preview_screen.draw(gl.GL_TRIANGLE_STRIP)
-
     def task(self):
-        image = self.incoming.get()
-        self.main_screen['texture'] = image
-        self.preview_screen['texture'] = image
+        tensor: torch.Tensor = self.incoming.get().clone()
+        tensor = (255 * tensor).byte().contiguous()  # convert to ByteTensor
+
+        self.window.activate()
+        mapping = self.cuda_buffer.map()
+        ary = mapping.array(0, 0)
+        cpy = pycuda.driver.Memcpy2D()
+        cpy.set_src_device(tensor.data_ptr())
+        cpy.set_dst_array(ary)
+        cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = (1920 * 1080 * 3) // 1080
+        cpy.height = 1080
+        cpy(aligned=False)
+        torch.cuda.synchronize()
+        mapping.unmap()
         if not self.backend.process(self.clock.tick()):
             self.exit_app.set()
