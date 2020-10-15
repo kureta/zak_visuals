@@ -7,7 +7,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.functional as F
+from torch.nn import functional as F
 import torchvision.transforms.functional as tvf
 from PIL import Image
 from torch.optim import Adam
@@ -29,7 +29,7 @@ parser.add_argument('--outl', default='Losses', help='folder to save Losses')
 parser.add_argument('--outm', default='Models', help='folder to save models')
 
 parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
-parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4, 4],
+parser.add_argument('--batchSizes', type=list, default=[16, 16, 16, 16, 16, 8, 8, 4],
                     help='list of batch sizes during the training')
 parser.add_argument('--nch', type=int, default=4, help='base number of channel for networks')
 parser.add_argument('--BN', action='store_true', help='use BatchNorm in G and D')
@@ -46,7 +46,7 @@ parser.add_argument('--savenum', type=int, default=16, help='number of examples 
 parser.add_argument('--savemodel', type=int, default=1, help='number of epochs between saving models')
 parser.add_argument('--savemaxsize', action='store_true',
                     help='save sample images at max resolution instead of real resolution')
-parser.add_argument('--max_res', type=int, default=8, help='maximum resolution will be 4*2^max_res')
+parser.add_argument('--max_res', type=int, default=7, help='maximum resolution will be 4*2^max_res')
 
 opt = parser.parse_args()
 print(opt)
