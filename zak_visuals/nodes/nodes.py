@@ -3,11 +3,14 @@ from contextlib import contextmanager
 import cupy as cp
 import cupyx.scipy.ndimage as cpi
 import librosa
+import moderngl_window as mglw
 import numpy as np
 import pycuda.driver
 import torch
 from glumpy import gloo, gl
+from moderngl_window import geometry
 from pycuda.gl import graphics_map_flags
+from pyglet.gl import GL_TEXTURE_2D
 from pytorch_pretrained_biggan import BigGAN
 from scipy.stats import norm
 from torch import multiprocessing as mp
@@ -434,16 +437,6 @@ def cuda_activate(img):
     mapping.unmap()
 
 
-def create_shared_texture(w, h, c=4,
-                          map_flags=graphics_map_flags.WRITE_DISCARD,
-                          dtype=np.uint8):
-    """Create and return a Texture2D with gloo and pycuda views."""
-    tex = np.zeros((w, h, c), dtype).view(gloo.Texture2D)
-    tex.activate()  # force gloo to create on GPU
-    tex.deactivate()
-    cuda_buffer = pycuda.gl.RegisteredImage(
-        int(tex.handle), tex.target, map_flags)
-    return tex, cuda_buffer
 
 
 # TODO: Clean-up code
@@ -455,27 +448,46 @@ class InteropDisplay(BaseNode):
         self.incoming = incoming
         self.exit_app = exit_app
 
+    def create_shared_texture(self, w, h, c=4,
+                              map_flags=graphics_map_flags.WRITE_DISCARD,
+                              dtype=np.uint8):
+        """Create and return a Texture2D with gloo and pycuda views."""
+        tex = self.window.ctx.texture((w, h), c)
+        tex.use(location=0)
+        cuda_buffer = pycuda.gl.RegisteredImage(
+            tex.glo, GL_TEXTURE_2D, map_flags)
+        return tex, cuda_buffer
+
     def setup(self):
-        from glumpy import app
-        app.use('glfw')
-        self.window = app.Window(width=1920, height=1080, fullscreen=False, decoration=False, vsync=False)
+        win_str = 'moderngl_window.context.pyglet.Window'
+        win_cls = mglw.get_window_cls(win_str)
+        self.window = win_cls(
+            title='Zak Visuals',
+            gl_version=(4, 6),
+            size=(1920, 1080),
+            resizable=False,
+            fullscreen=True,
+            vsync=True,
+            aspect_ratio=16/9,
+            samples=4
+        )
+        mglw.activate_context(ctx=self.window.ctx)
+
+        with open('shaders/screen/vertex.glsl') as f:
+            vertex_shader = f.read()
+        with open('shaders/screen/fragment.glsl') as f:
+            fragment_shader = f.read()
+
+        self.prog = self.window.ctx.program(
+            vertex_shader=vertex_shader,
+            fragment_shader=fragment_shader
+        )
+
         import pycuda.gl.autoinit  # noqa
-        # TODO: Even though we don't use the `state` variable, shared texture creation
-        #       fails if we don't initialize it here. Why?
-        state = torch.zeros((1, 3, 1920, 1080), dtype=torch.float32, device='cuda')
-        tex, self.cuda_buffer = create_shared_texture(1920, 1080, 4)
-        self.main_screen = gloo.Program(vertex, fragment, count=4)
-        self.main_screen['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
-        self.main_screen['texcoord'] = [(0, 1), (0, 0), (1, 1), (1, 0)]
-        self.main_screen['texture'] = tex
-
-        self.backend = app.__backend__
-        self.clock = app.__init__(backend=self.backend, framerate=0)
-        self.window.event('on_draw')(self.on_draw)
-
-    def on_draw(self, dt):
-        self.window.clear()
-        self.main_screen.draw(gl.GL_TRIANGLE_STRIP)
+        state = torch.zeros((1, 3, 1920, 1080), dtype=torch.float32, device='cuda', requires_grad=False)
+        texture, self.cuda_buffer = self.create_shared_texture(1920, 1080, 4)
+        # self.texture.filter = mgl.NEAREST, mgl.NEAREST
+        self.quad_fs = geometry.quad_fs()
 
     def task(self):
         tensor: torch.Tensor = self.incoming.get().clone()
@@ -484,20 +496,21 @@ class InteropDisplay(BaseNode):
         tensor[:, :, 3] = 1.  # set alpha
         tensor *= 255
         tensor = torch.clip(tensor, 0, 255)
-        tensor = tensor.byte().contiguous()  # convert to ByteTensor
+        tensor = tensor.byte().contiguous().data  # convert to ByteTensor
 
-        self.window.activate()
-        tex = self.main_screen['texture']
-        h, w = tex.shape[:2]
-        assert tex.nbytes == tensor.numel() * tensor.element_size()
+        w = 1920
+        h = 1080
         with cuda_activate(self.cuda_buffer) as ary:
             cpy = pycuda.driver.Memcpy2D()
             cpy.set_src_device(tensor.data_ptr())
             cpy.set_dst_array(ary)
-            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = tex.nbytes//h
+            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = w * 4
             cpy.height = h
             cpy(aligned=False)
             torch.cuda.synchronize()
 
-        if not self.backend.process(self.clock.tick()):
+        self.window.clear()
+        self.quad_fs.render(self.prog)
+        self.window.swap_buffers()
+        if self.window.is_closing:
             self.exit_app.set()
