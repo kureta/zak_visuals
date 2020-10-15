@@ -5,29 +5,34 @@ botocore==1.18.16
 certifi==2020.6.20
 cffi==1.14.3
 chardet==3.0.4
-cupy==8.0.0
-Cython==0.29.21
 decorator==4.4.2
-docutils==0.16
-fastrlock==0.5
 future==0.18.2
-glumpy==1.1.0
+glcontext==2.2.0
 idna==2.10
 JACK-Client==0.5.2
 jmespath==0.10.0
 joblib==0.17.0
 librosa==0.8.0
 llvmlite==0.34.0
+Mako==1.1.3
+MarkupSafe==1.1.1
+moderngl==5.6.2
+moderngl-window==2.2.3
+multipledispatch==0.6.0
 numba==0.51.2
 numpy==1.19.2
 packaging==20.4
+Pillow==8.0.0
 pooch==1.2.0
 pycparser==2.20
-PyOpenGL==3.1.5
+pycuda @ file:///home/kureta/Documents/other-repos/custom-pips/pycuda-2020.1-cp38-cp38-linux_x86_64.whl
+pyglet==1.5.7
 PyOpenGL-accelerate==3.1.5
 pyparsing==2.4.7
+pyrr==0.10.3
 python-dateutil==2.8.1
 python-osc==1.7.4
+pytools==2020.4
 pytorch-pretrained-biggan==0.1.1
 requests==2.24.0
 resampy==0.2.2
@@ -39,6 +44,5 @@ SoundFile==0.10.3.post1
 threadpoolctl==2.1.0
 torch @ file:///home/kureta/Documents/other-repos/custom-pips/torch-1.8.0a0-cp38-cp38-linux_x86_64.whl
 tqdm==4.50.2
-triangle==20200424
 typing-extensions==3.7.4.3
 urllib3==1.25.10
