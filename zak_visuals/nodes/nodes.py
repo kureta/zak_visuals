@@ -1,18 +1,14 @@
 from contextlib import contextmanager
 
-import cupy as cp
-import cupyx.scipy.ndimage as cpi
 import librosa
 import moderngl_window as mglw
 import numpy as np
 import pycuda.driver
 import torch
-from glumpy import gloo, gl
 from moderngl_window import geometry
 from pycuda.gl import graphics_map_flags
 from pyglet.gl import GL_TEXTURE_2D
 from pytorch_pretrained_biggan import BigGAN
-from scipy.stats import norm
 from torch import multiprocessing as mp
 from torch.nn import functional as F
 
@@ -21,27 +17,6 @@ from berlin.pg_gan.utils import hypersphere
 from zak_visuals.nodes.base_nodes import BaseNode
 
 DEVICE = 'cuda:0'
-
-vertex = """
-    uniform float scale;
-    attribute vec2 position;
-    attribute vec2 texcoord;
-    varying vec2 v_texcoord;
-    void main()
-    {
-        gl_Position = vec4(position, 0.0, 1.0);
-        v_texcoord = texcoord;
-    }
-"""
-
-fragment = """
-    uniform sampler2D texture;
-    varying vec2 v_texcoord;
-    void main()
-    {
-        gl_FragColor = texture2D(texture, v_texcoord);
-    }
-"""
 
 faces = {
     'accordion': 401,
@@ -224,15 +199,14 @@ class PGGAN(BaseNode):
 
         image = self.generator(features)
 
-        image = F.interpolate(image, (1920, 1080))
-
         image.squeeze_(0)
         image = image.permute(1, 2, 0)
-        image = image.expand(1920, 1080, 3)
+        image = image.expand(1024, 1024, 3)
 
         self.outgoing.put(image)
 
 
+# TODO: User real time in all animated values
 class NoiseGenerator(BaseNode):
     def __init__(self, outgoing: mp.Queue, params: dict, pause_event: mp.Event):
         super().__init__(pause_event=pause_event)
@@ -388,45 +362,12 @@ class BIGGAN(BaseNode):
         features = features + noise
 
         image = self.generator(features, label, 0.4)
-        image = torch.nn.functional.interpolate(image, (1920, 1080), mode='bicubic')
+        image = F.interpolate(image, (1024, 1024))
 
         image.squeeze_(0)
         image = image.permute(1, 2, 0)
 
         self.outgoing.put(image)
-
-
-class ImageFX(BaseNode):
-    def __init__(self, incoming: mp.Queue, outgoing: mp.Queue, rms: mp.Value, params: dict):
-        super().__init__()
-        self.rms = rms
-        self.incoming = incoming
-        self.outgoing = outgoing
-        self.params = params
-
-    def setup(self):
-        torch.autograd.set_grad_enabled(False)
-
-    def task(self):
-        image: torch.Tensor = self.incoming.get().clone()
-        # rms = (self.rms.value + 2) / 4
-        rms = norm.cdf(self.rms.value)
-        rms_influence = self.params['rms_influence'].value
-
-        rgb = self.params['rgb'].value * 50
-
-        cimage = cp.asarray(image)
-        for idx in range(3):
-            shift = np.random.randn(2).astype('float32') * rgb
-            cimage[:, :, idx] = cpi.shift(cimage[:, :, idx], shift, mode='mirror')
-
-        nimage = cp.asnumpy(cimage)
-        nimage = (nimage + 1) / 2
-        nimage *= (rms - 1) * rms_influence + 1
-        nimage *= 255
-        nimage = np.clip(nimage, 0, 255).astype('uint8')
-
-        self.outgoing.put(nimage)
 
 
 @contextmanager
@@ -437,11 +378,9 @@ def cuda_activate(img):
     mapping.unmap()
 
 
-
-
 # TODO: Clean-up code
-# TODO: Upgrade shader language to version 4.6.0
 # TODO: Add back preview window using shared context
+# TODO: Add shader effects
 class InteropDisplay(BaseNode):
     def __init__(self, incoming: mp.Queue, exit_app: mp.Event):
         super().__init__()
@@ -449,8 +388,7 @@ class InteropDisplay(BaseNode):
         self.exit_app = exit_app
 
     def create_shared_texture(self, w, h, c=4,
-                              map_flags=graphics_map_flags.WRITE_DISCARD,
-                              dtype=np.uint8):
+                              map_flags=graphics_map_flags.WRITE_DISCARD):
         """Create and return a Texture2D with gloo and pycuda views."""
         tex = self.window.ctx.texture((w, h), c)
         tex.use(location=0)
@@ -484,27 +422,25 @@ class InteropDisplay(BaseNode):
         )
 
         import pycuda.gl.autoinit  # noqa
-        state = torch.zeros((1, 3, 1920, 1080), dtype=torch.float32, device='cuda', requires_grad=False)
-        texture, self.cuda_buffer = self.create_shared_texture(1920, 1080, 4)
-        # self.texture.filter = mgl.NEAREST, mgl.NEAREST
+        self.state = torch.ones((1024, 1024, 4), dtype=torch.float32, device='cuda', requires_grad=False)
+        texture, self.cuda_buffer = self.create_shared_texture(1024, 1024, 4)
         self.quad_fs = geometry.quad_fs()
 
     def task(self):
-        tensor: torch.Tensor = self.incoming.get().clone()
+        tensor: torch.Tensor = self.incoming.get()
         tensor = (tensor + 1) / 2
-        tensor = torch.cat((tensor, tensor[:, :, :1]), dim=2)  # add the alpha channel
-        tensor[:, :, 3] = 1.  # set alpha
-        tensor *= 255
+        self.state[..., :3] = tensor
+        tensor = self.state * 255.
         tensor = torch.clip(tensor, 0, 255)
         tensor = tensor.byte().contiguous().data  # convert to ByteTensor
 
-        w = 1920
-        h = 1080
+        w = 1024
+        h = 1024
         with cuda_activate(self.cuda_buffer) as ary:
             cpy = pycuda.driver.Memcpy2D()
             cpy.set_src_device(tensor.data_ptr())
             cpy.set_dst_array(ary)
-            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = w * 4
+            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = w*4
             cpy.height = h
             cpy(aligned=False)
             torch.cuda.synchronize()

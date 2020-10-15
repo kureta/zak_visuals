@@ -5,6 +5,6 @@ in vec2 in_texcoord_0;
 out vec2 uv;
 
 void main() {
-    gl_Position = vec4(in_position, 1.0);
+    gl_Position = vec4(in_position.x, -in_position.y, in_position.z, 1.0);
     uv = in_texcoord_0;
 }
