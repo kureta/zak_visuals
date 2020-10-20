@@ -1,3 +1,5 @@
+import time
+
 from torch import multiprocessing as mp
 
 
@@ -9,10 +11,15 @@ class BaseNode(mp.Process):
 
     def run(self):
         self.setup()
+        zzz = 1 / 120
         while not self.exit.is_set():
+            t0 = time.time()
             if self.pause:
                 self.pause.wait()
             self.task()
+            t1 = time.time()
+            wait = zzz - (t1 - t0)
+            time.sleep(max(wait, 0))
 
     def setup(self):
         pass

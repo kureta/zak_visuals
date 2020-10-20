@@ -89,7 +89,6 @@ class App:
         self.label_generator.kill()
         self.image_generator.kill()
         self.image_generator_2.kill()
-        # self.image_fx.kill()
         self.image_display.kill()
 
         self.jack_input.join()
