@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
 import librosa
+import moderngl as mgl
 import moderngl_window as mglw
 import numpy as np
 import pycuda.driver
@@ -12,6 +13,7 @@ from pytorch_pretrained_biggan import BigGAN
 from torch import multiprocessing as mp
 from torch.nn import functional as F
 
+import stylegan2
 from berlin.pg_gan.model import Generator
 from berlin.pg_gan.utils import hypersphere
 from zak_visuals.nodes.base_nodes import BaseNode
@@ -170,6 +172,35 @@ class AudioProcessor(BaseNode):
         self.rms.value = (rms - self.rms_mean) / max(self.epsilon, self.rms_std)
 
 
+class StyleGAN2(BaseNode):
+    def __init__(self, pause_event: mp.Event, noise: mp.Queue, stft_in: mp.Array, outgoing: mp.Queue, params: dict):
+        super().__init__(pause_event=pause_event)
+        self.noise = noise
+        self.stft_in = stft_in
+        self.outgoing = outgoing
+        self.params = params
+
+    def setup(self):
+        checkpoint_path = '/home/kureta/Documents/other-repos/stylegan2_pytorch/pretrained/cats/Gs.pth'
+        self.generator = stylegan2.models.load(checkpoint_path)
+        self.generator.to(DEVICE)
+        torch.autograd.set_grad_enabled(False)
+        self.stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
+
+    def task(self):
+        noise = self.noise.get().repeat(1, 4)
+        scale = self.params['stft_scale'].value * 5.
+
+        features = torch.from_numpy(self.stft).to(DEVICE).unsqueeze(0).repeat(1, 4)
+        features = features * noise * scale
+        image = self.generator(features)
+        image = F.interpolate(image, (1024, 1024))
+        image.squeeze_(0)
+        image = image.permute(1, 2, 0)
+
+        self.outgoing.put(image)
+
+
 class PGGAN(BaseNode):
     def __init__(self, pause_event: mp.Event, incoming: mp.Array, noise: mp.Queue, outgoing: mp.Queue,
                  params: dict):
@@ -178,10 +209,10 @@ class PGGAN(BaseNode):
         self.noise = noise
         self.outgoing = outgoing
         self.params = params
-        checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
-        self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE).eval()
 
     def setup(self):
+        checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
+        self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE).eval()
         torch.autograd.set_grad_enabled(False)
         self.stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
 
@@ -214,7 +245,7 @@ class NoiseGenerator(BaseNode):
         self.params = params
         self.num_frames = 128
         self.speed = 1
-        self.sampling_radius = 0.01
+        self.sampling_radius = 1.
         self.frame = 0
         self.idx = 0
         self.moving = False
@@ -238,13 +269,13 @@ class NoiseGenerator(BaseNode):
         self.set_start(self.buffers[0], self.buffers[1])
 
     def restart(self):
-        self.sampling_radius = self.params['noise_std'].value * 12. + 0.01
+        # self.sampling_radius = self.params['noise_std'].value * 12. + 0.01
         self.moving = True
         self.create_motion(self.buffers[0])
         self.set_start(self.buffers[1], self.buffers[0])
 
     def task(self):
-        self.speed = int(self.params['noise_speed'].value * 31 + 1)
+        self.speed = int(self.params['noise_speed'].value * 10)
 
         if self.frame >= self.num_frames - 1:
             self.moving = False
@@ -340,10 +371,9 @@ class BIGGAN(BaseNode):
         self.outgoing = outgoing
         self.params = params
 
+    def setup(self):
         self.generator = BigGAN.from_pretrained('/home/kureta/Documents/repos/zak_visuals/biggan').eval()
         self.generator.to(DEVICE)
-
-    def setup(self):
         torch.autograd.set_grad_enabled(False)
         self.stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
@@ -391,6 +421,7 @@ class InteropDisplay(BaseNode):
                               map_flags=graphics_map_flags.WRITE_DISCARD):
         """Create and return a Texture2D with gloo and pycuda views."""
         tex = self.window.ctx.texture((w, h), c)
+        tex.filter = mgl.LINEAR, mgl.LINEAR
         tex.use(location=0)
         cuda_buffer = pycuda.gl.RegisteredImage(
             tex.glo, GL_TEXTURE_2D, map_flags)

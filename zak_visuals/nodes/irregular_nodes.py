@@ -5,6 +5,8 @@ from pythonosc import dispatcher, osc_server, udp_client
 from torch import multiprocessing as mp
 
 
+# TODO: differnt instrument channels should have different contributions concatenated
+# TODO: move the hypersphere center to a randomly sampled point with an OSC trigger
 class JACKInput(threading.Thread):
     def __init__(self, outgoing: mp.Array):
         super().__init__()
@@ -19,10 +21,11 @@ class JACKInput(threading.Thread):
         self.buffer[:] = self.inport.get_array()
 
     def run(self):
-        sysport: jack.Port = self.client.get_ports(is_audio=True, is_output=True, is_physical=True)[0]
+        sysports = [p for p in self.client.get_ports(is_audio=True, is_output=True) if 'Bitwig' in p.name]
 
         with self.client:
-            self.client.connect(sysport, self.inport)
+            for sysport in sysports:
+                self.client.connect(sysport, self.inport)
             self.exit.wait()
 
     def join(self, **kwargs):

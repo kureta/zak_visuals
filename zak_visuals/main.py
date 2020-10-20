@@ -4,7 +4,7 @@ import signal
 
 from torch import multiprocessing as mp
 
-from zak_visuals.nodes import AudioProcessor, BIGGAN, InteropDisplay, NoiseGenerator, LabelGenerator, PGGAN
+from zak_visuals.nodes import AudioProcessor, BIGGAN, InteropDisplay, NoiseGenerator, LabelGenerator, StyleGAN2
 from zak_visuals.nodes import JACKInput, OSCServer
 
 logger = mp.log_to_stderr()
@@ -57,8 +57,8 @@ class App:
         self.osc_server = OSCServer(self.exit, params=params)
         self.jack_input = JACKInput(outgoing=buffer)
         self.audio_processor = AudioProcessor(incoming=buffer, outgoing=stft, rms=rms, pause_event=pause_audio)
-        self.image_generator_2 = PGGAN(pause_event=pause_pggan, incoming=stft, noise=noise,
-                                       outgoing=image, params=params)
+        self.image_generator_2 = StyleGAN2(pause_event=pause_pggan, noise=noise, stft_in=stft, outgoing=image,
+                                           params=params)
         self.noise_generator = NoiseGenerator(outgoing=noise, params=params, pause_event=pause_noise)
         self.label_generator = LabelGenerator(outgoing=label, params=params)
         self.image_generator = BIGGAN(stft_in=stft, noise_in=noise, label_in=label,
