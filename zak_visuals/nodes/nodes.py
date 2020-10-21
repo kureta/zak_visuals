@@ -80,6 +80,7 @@ class StyleGAN2(BaseNode):
         self.outgoing = outgoing
         self.params = params
 
+    # TODO: interpolate laye weights between different pretrained models
     def setup(self):
         checkpoint_path = '/home/kureta/Documents/other-repos/stylegan2_pytorch/pretrained/cats/Gs.pth'
         self.generator = stylegan2.models.load(checkpoint_path)

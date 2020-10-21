@@ -11,6 +11,7 @@ logger = mp.log_to_stderr()
 logger.setLevel(logging.ERROR)
 
 
+# TODO: Test Pipe instead of Queue
 class App:
     def __init__(self):
         mp.set_start_method('spawn', force=True)
