@@ -17,109 +17,9 @@ import stylegan2
 from berlin.pg_gan.model import Generator
 from berlin.pg_gan.utils import hypersphere
 from zak_visuals.nodes.base_nodes import BaseNode
+from zak_visuals.utils.constants import label_groups
 
 DEVICE = 'cuda:0'
-
-faces = {
-    'accordion': 401,
-    'drum': 541,
-    'maraca': 641,
-    'marimba': 642,
-    'steel_drum': 822,
-    'banjo': 420,
-    'ocarina': 684,
-    'cello': 486,
-    'violin': 889,
-    'harp': 594,
-    'acoustic_guitar': 402,
-    'electric_guitar': 546,
-    'cornet': 513,
-    'french_horn': 566,
-    'trombone': 875,
-    'harmonica': 593,
-    'panpipe': 699,
-    'flute': 558,
-    'bassoon': 432,
-    'oboe': 683,
-    'sax': 776,
-}
-mechanical = {
-    'barometer': 426,
-    'odometer': 685,
-    'hourglass': 604,
-    'sundial': 835,
-    'analog_clock': 409,
-    'wall_clock': 892,
-    'digital_clock': 530,
-    'scale': 778,
-    'stopwatch': 826,
-    'rule': 769,
-    'digital_watch': 531,
-}
-architecture = {
-    'altar': 406,
-    'prison': 743,
-    'triumphal_arch': 873,
-    'steel_arch_bridge': 821,
-    'suspension_bridge': 839,
-    'dam': 525,
-    'dock': 536,
-    'beacon': 437,
-    'obelisk': 682,
-    'totem_pole': 863,
-    'megalith': 649,
-    'church': 497,
-    'mosque': 668,
-    'castle': 483,
-    'monastery': 663,
-    'palace': 698,
-}
-office = {
-    'abacus': 398,
-    'bow-tie': 457,
-    'coffee mug': 504,
-    'coffee pot': 505,
-    'keyboard': 508,
-    'dial phone': 528,
-    'envelope': 549,
-    'file cabinet': 553,
-    'fountain pen': 563,
-    'tie': 906,
-    'typewriter': 878,
-}
-whispers = {
-    'web': 815,
-    'barn_spider': 73,
-    'black_and_gold_garden_spider': 72,
-    'black_widow': 75,
-    'garden_spider': 74,
-    'tarantula': 76,
-    'wolf_spider': 77,
-    'ground_beetle': 302,
-    'leaf_beetle': 304,
-    'long-horned_beetle': 303,
-    'tiger_beetle': 300,
-    'weevil': 307,
-    'cockroach': 314,
-    'mantis': 315,
-    'fly': 308,
-    'cicada': 316,
-    'leafhopper': 317,
-    'ant': 310,
-    'lacewing': 318,
-    'damselfly': 320,
-    'dragonfly': 319,
-    'cricket': 312,
-    'grasshopper': 311,
-    'walking_stick': 313,
-    'lycaenid': 326,
-    'ringlet': 322,
-    'dung_beetle': 305,
-    'rhinoceros_beetle': 306,
-    'admiral': 321,
-}
-
-label_groups = [faces, mechanical, architecture, office, whispers]
 
 
 class AudioProcessor(BaseNode):
@@ -437,7 +337,7 @@ class InteropDisplay(BaseNode):
             resizable=False,
             fullscreen=True,
             vsync=True,
-            aspect_ratio=16/9,
+            aspect_ratio=16 / 9,
             samples=4
         )
         mglw.activate_context(ctx=self.window.ctx)
@@ -471,7 +371,7 @@ class InteropDisplay(BaseNode):
             cpy = pycuda.driver.Memcpy2D()
             cpy.set_src_device(tensor.data_ptr())
             cpy.set_dst_array(ary)
-            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = w*4
+            cpy.width_in_bytes = cpy.src_pitch = cpy.dst_pitch = w * 4
             cpy.height = h
             cpy(aligned=False)
             torch.cuda.synchronize()
