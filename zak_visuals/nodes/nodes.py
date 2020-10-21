@@ -83,17 +83,23 @@ class StyleGAN2(BaseNode):
     def setup(self):
         checkpoint_path = '/home/kureta/Documents/other-repos/stylegan2_pytorch/pretrained/cats/Gs.pth'
         self.generator = stylegan2.models.load(checkpoint_path)
+        self.generator.static_noise()
         self.generator.to(DEVICE)
         torch.autograd.set_grad_enabled(False)
         self.stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
+        self.first = torch.randn((1, 4, 512), device=DEVICE)
+        self.last = torch.randn((1, 9, 512), device=DEVICE)
+
     def task(self):
         noise = self.noise.get().repeat(1, 4)
+        noise = noise.unsqueeze(0)
+        noise = torch.cat([self.first, noise, self.last], dim=1)
         scale = self.params['stft_scale'].value * 5.
 
-        features = torch.from_numpy(self.stft).to(DEVICE).unsqueeze(0).repeat(1, 4)
-        features = features * noise * scale
-        image = self.generator(features)
+        features = torch.from_numpy(self.stft).to(DEVICE).unsqueeze(0).repeat(1, 4) * scale
+        noise[:, 3, :] *= features
+        image = self.generator(noise)
         image = F.interpolate(image, (1024, 1024))
         image.squeeze_(0)
         image = image.permute(1, 2, 0)
