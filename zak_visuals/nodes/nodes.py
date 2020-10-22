@@ -9,12 +9,10 @@ import torch
 from moderngl_window import geometry
 from pycuda.gl import graphics_map_flags
 from pyglet.gl import GL_TEXTURE_2D
-from pytorch_pretrained_biggan import BigGAN
 from torch import multiprocessing as mp
 from torch.nn import functional as F
 
 import stylegan2
-from berlin.pg_gan.model import Generator
 from berlin.pg_gan.utils import hypersphere
 from zak_visuals.nodes.base_nodes import BaseNode
 from zak_visuals.utils.constants import label_groups
@@ -70,78 +68,6 @@ class AudioProcessor(BaseNode):
 
         self.outgoing[:] = (stft[:128] - self.mean) / max(self.epsilon, self.std)
         self.rms.value = (rms - self.rms_mean) / max(self.epsilon, self.rms_std)
-
-
-class StyleGAN2(BaseNode):
-    def __init__(self, pause_event: mp.Event, noise: mp.Queue, stft_in: mp.Array, outgoing: mp.Queue, params: dict):
-        super().__init__(pause_event=pause_event)
-        self.noise = noise
-        self.stft_in = stft_in
-        self.outgoing = outgoing
-        self.params = params
-
-    # TODO: interpolate laye weights between different pretrained models
-    def setup(self):
-        checkpoint_path = '/home/kureta/Documents/other-repos/stylegan2_pytorch/pretrained/cats/Gs.pth'
-        self.generator = stylegan2.models.load(checkpoint_path)
-        self.generator.static_noise()
-        self.generator.to(DEVICE)
-        torch.autograd.set_grad_enabled(False)
-        self.stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
-
-        self.first = torch.randn((1, 4, 512), device=DEVICE)
-        self.last = torch.randn((1, 9, 512), device=DEVICE)
-
-    def task(self):
-        noise = self.noise.get().repeat(1, 4)
-        noise = noise.unsqueeze(0)
-        noise = torch.cat([self.first, noise, self.last], dim=1)
-        scale = self.params['stft_scale'].value * 5.
-
-        features = torch.from_numpy(self.stft).to(DEVICE).unsqueeze(0).repeat(1, 4) * scale
-        noise[:, 3, :] *= features
-        image = self.generator(noise)
-        image = F.interpolate(image, (1024, 1024))
-        image.squeeze_(0)
-        image = image.permute(1, 2, 0)
-
-        self.outgoing.put(image)
-
-
-class PGGAN(BaseNode):
-    def __init__(self, pause_event: mp.Event, incoming: mp.Array, noise: mp.Queue, outgoing: mp.Queue,
-                 params: dict):
-        super().__init__(pause_event=pause_event)
-        self.incoming = incoming
-        self.noise = noise
-        self.outgoing = outgoing
-        self.params = params
-
-    def setup(self):
-        checkpoint_path = 'saves/zak1.1/Models/Gs_nch-4_epoch-347.pth'
-        self.generator: Generator = torch.load(checkpoint_path, map_location=DEVICE).eval()
-        torch.autograd.set_grad_enabled(False)
-        self.stft = np.ndarray((128,), dtype='float32', buffer=self.incoming)
-
-    def task(self):
-        noise = self.noise.get().unsqueeze(2).unsqueeze(3)
-
-        scale = self.params['stft_scale'].value * 1.2
-
-        features = np.zeros((1, 128, 1, 1), dtype='float32')
-        features[0, :, 0, 0] = self.stft
-        features = torch.from_numpy(features)
-        features = features.to(DEVICE)
-        features = hypersphere(features, scale)
-        features = features + noise
-
-        image = self.generator(features)
-
-        image.squeeze_(0)
-        image = image.permute(1, 2, 0)
-        image = image.expand(1024, 1024, 3)
-
-        self.outgoing.put(image)
 
 
 # TODO: User real time in all animated values
@@ -268,39 +194,43 @@ class LabelGenerator(BaseNode):
             self.outgoing.put(self.buffers[0][0])
 
 
-class BIGGAN(BaseNode):
-    def __init__(self, stft_in: mp.Array, noise_in: mp.Queue, label_in: mp.Queue, outgoing: mp.Queue, params: dict,
-                 pause_event: mp.Event):
+# TODO: Buffering and batch generation speeds up the process but introduces visible latency
+class StyleGAN2(BaseNode):
+    def __init__(self, pause_event: mp.Event, noise: mp.Queue, stft_in: mp.Array, outgoing: mp.Queue, params: dict):
         super().__init__(pause_event=pause_event)
+        self.noise = noise
         self.stft_in = stft_in
-        self.noise_in = noise_in
-        self.label_in = label_in
         self.outgoing = outgoing
         self.params = params
 
+    # TODO: interpolate layer weights between different pretrained models
+    #       it is harder than I thought. Later.
+    # TODO: There are 14 noise input layers. Lower to higher frequency features.
+    #       Can send STFT bands to corresponding layers. Control noise animations for each layer separately.
+    # TODO: get rid of other generators. Rethink architecture, keeping nodez UI in mind.
     def setup(self):
-        self.generator = BigGAN.from_pretrained('/home/kureta/Documents/repos/zak_visuals/biggan').eval()
+        checkpoint_path = '/home/kureta/Documents/other-repos/stylegan2_pytorch/pretrained/cats/Gs.pth'
+        self.generator = stylegan2.models.load(checkpoint_path)
+        self.generator.static_noise()
+        self.generator.eval()
         self.generator.to(DEVICE)
+
         torch.autograd.set_grad_enabled(False)
         self.stft = np.ndarray((128,), dtype='float32', buffer=self.stft_in)
 
+        self.first = torch.randn((1, 2, 512), device=DEVICE)
+        self.last = torch.randn((1, 11, 512), device=DEVICE)
+
     def task(self):
-        noise = self.noise_in.get()
-        label = self.label_in.get()
+        noise = self.noise.get()
+        noise = noise.repeat(1, 4)
+        noise.unsqueeze_(0)
+        noise = torch.cat([self.first, noise, self.last], dim=1)
+        scale = self.params['stft_scale'].value * 20.
 
-        scale = self.params['stft_scale'].value * 12
-
-        features = np.zeros((1, 128), dtype='float32')
-        features[0, :] = self.stft
-
-        features = torch.from_numpy(features)
-        features = features.to(DEVICE)
-        features = hypersphere(features, scale)
-        features = features + noise
-
-        image = self.generator(features, label, 0.4)
-        image = F.interpolate(image, (1024, 1024))
-
+        features = torch.from_numpy(self.stft).to(DEVICE).unsqueeze(0).repeat(noise.shape[0], 4) * scale
+        noise[:, 3, :] = features
+        image = self.generator(noise)
         image.squeeze_(0)
         image = image.permute(1, 2, 0)
 
@@ -360,8 +290,8 @@ class InteropDisplay(BaseNode):
         )
 
         import pycuda.gl.autoinit  # noqa
-        self.state = torch.ones((1024, 1024, 4), dtype=torch.float32, device='cuda', requires_grad=False)
-        texture, self.cuda_buffer = self.create_shared_texture(1024, 1024, 4)
+        self.state = torch.ones((256, 256, 4), dtype=torch.float32, device='cuda', requires_grad=False)
+        texture, self.cuda_buffer = self.create_shared_texture(256, 256, 4)
         self.quad_fs = geometry.quad_fs()
 
     def task(self):
@@ -372,8 +302,8 @@ class InteropDisplay(BaseNode):
         tensor = torch.clip(tensor, 0, 255)
         tensor = tensor.byte().contiguous().data  # convert to ByteTensor
 
-        w = 1024
-        h = 1024
+        w = 256
+        h = 256
         with cuda_activate(self.cuda_buffer) as ary:
             cpy = pycuda.driver.Memcpy2D()
             cpy.set_src_device(tensor.data_ptr())

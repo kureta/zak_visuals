@@ -4,7 +4,7 @@ import signal
 
 from torch import multiprocessing as mp
 
-from zak_visuals.nodes import AudioProcessor, BIGGAN, InteropDisplay, NoiseGenerator, LabelGenerator, StyleGAN2
+from zak_visuals.nodes import AudioProcessor, InteropDisplay, NoiseGenerator, StyleGAN2
 from zak_visuals.nodes import JACKInput, OSCServer
 
 logger = mp.log_to_stderr()
@@ -12,13 +12,13 @@ logger.setLevel(logging.ERROR)
 
 
 # TODO: Test Pipe instead of Queue
+# TODO: use longer queues, buffer inputs, generate batch images
 class App:
     def __init__(self):
         mp.set_start_method('spawn', force=True)
         self.exit = mp.Event()
 
-        pause_pggan = mp.Event()
-        pause_biggan = mp.Event()
+        pause_stylegan = mp.Event()
         pause_audio = mp.Event()
         pause_noise = mp.Event()
 
@@ -40,8 +40,8 @@ class App:
             'label_speed': label_speed,
             'noise_speed': noise_speed,
             'noise_std': noise_std,
-            'pause_gans': [pause_pggan, pause_biggan],
-            'pause_all': [pause_audio, pause_noise],
+            'pause_gans': [pause_stylegan],
+            'pause_all': [pause_audio, pause_noise, pause_stylegan],
             'rms_influence': rms_influence
         }
         rgb.value, stft_scale.value, animate_noise.value, randomize_label.value = 0., 0., 0., 0.
@@ -52,18 +52,14 @@ class App:
         stft = mp.Array(ctypes.c_float, 128, lock=False)
         rms = mp.Value(ctypes.c_float, lock=False)
         noise = mp.Queue(maxsize=1)
-        label = mp.Queue(maxsize=1)
         image = mp.Queue(maxsize=1)
 
         self.osc_server = OSCServer(self.exit, params=params)
         self.jack_input = JACKInput(outgoing=buffer)
         self.audio_processor = AudioProcessor(incoming=buffer, outgoing=stft, rms=rms, pause_event=pause_audio)
-        self.image_generator_2 = StyleGAN2(pause_event=pause_pggan, noise=noise, stft_in=stft, outgoing=image,
-                                           params=params)
+        self.stylegan = StyleGAN2(pause_event=pause_stylegan, noise=noise, stft_in=stft, outgoing=image,
+                                  params=params)
         self.noise_generator = NoiseGenerator(outgoing=noise, params=params, pause_event=pause_noise)
-        self.label_generator = LabelGenerator(outgoing=label, params=params)
-        self.image_generator = BIGGAN(stft_in=stft, noise_in=noise, label_in=label,
-                                      outgoing=image, params=params, pause_event=pause_biggan)
         self.image_display = InteropDisplay(incoming=image, exit_app=self.exit)
 
     def run(self):
@@ -74,9 +70,7 @@ class App:
 
         self.audio_processor.start()
         self.noise_generator.start()
-        self.label_generator.start()
-        self.image_generator_2.start()
-        self.image_generator.start()
+        self.stylegan.start()
         self.image_display.start()
 
         signal.signal(signal.SIGINT, self.on_keyboard_interrupt)
@@ -87,9 +81,7 @@ class App:
     def exit_handler(self):
         self.audio_processor.kill()
         self.noise_generator.kill()
-        self.label_generator.kill()
-        self.image_generator.kill()
-        self.image_generator_2.kill()
+        self.stylegan.kill()
         self.image_display.kill()
 
         self.jack_input.join()
