@@ -35,6 +35,7 @@ class JACKInput(threading.Thread):
 
 class OSCServer(threading.Thread):
     def __init__(self, exit_app: mp.Event, params: dict):
+        print('server start')
         super().__init__()
         self.exit_app = exit_app
         self.dispatcher = dispatcher.Dispatcher()
@@ -98,6 +99,7 @@ class OSCServer(threading.Thread):
             self.params['pause_gans'][idx].clear()
 
     def on_pause(self, addr, value):
+        print(value)
         if value:
             for e in self.params['pause_all']:
                 e.set()

@@ -26,3 +26,4 @@
 - [x] berlin sampling radius is too large
 - [x] curate label lists
 - [ ] ~~smooth low frame rate~~
+- [ ] Try using OpenCV instead of ModernGL

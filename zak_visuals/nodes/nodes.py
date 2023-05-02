@@ -209,7 +209,7 @@ class StyleGAN2(BaseNode):
     #       Can send STFT bands to corresponding layers. Control noise animations for each layer separately.
     # TODO: get rid of other generators. Rethink architecture, keeping nodez UI in mind.
     def setup(self):
-        checkpoint_path = '/home/kureta/Documents/other-repos/stylegan2_pytorch/pretrained/cats/Gs.pth'
+        checkpoint_path = '/home/kureta/Documents/repos/other/stylegan2_pytorch/pretrained/cats/Gs.pth'
         self.generator = stylegan2.models.load(checkpoint_path)
         self.generator.static_noise()
         self.generator.eval()
