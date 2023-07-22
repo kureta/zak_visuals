@@ -10,7 +10,7 @@ Cython==0.29.21
 decorator==4.4.2
 docutils==0.16
 fastrlock==0.5
-future==0.18.2
+future==0.18.3
 glumpy==1.1.0
 idna==2.10
 JACK-Client==0.5.2
