@@ -20,6 +20,7 @@ torchvision = "^0.17.1"
 pyyaml = "^6.0.1"
 tensorboard = "^2.16.2"
 pytorch-pretrained-biggan = "^0.1.1"
+glumpy = {path = "../glumpy/dist/glumpy-1.2.1-cp311-cp311-linux_x86_64.whl"}
 
 
 [build-system]
