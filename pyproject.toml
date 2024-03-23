@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "zak-visuals"
+version = "0.1.0"
+description = ""
+authors = ["kureta <skureta@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.2.1"
+librosa = "^0.10.1"
+moderngl = "^5.10.0"
+cupy = "^13.0.0"
+pycuda = {path = "../pycuda/dist/pycuda-2024.1-cp311-cp311-linux_x86_64.whl"}
+jack-client = "^0.5.4"
+python-osc = "^1.8.3"
+pyopengl = "^3.1.7"
+pyopengl-accelerate = "^3.1.7"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
